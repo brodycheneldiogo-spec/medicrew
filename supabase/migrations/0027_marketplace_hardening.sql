@@ -177,7 +177,8 @@ create policy "company creates draft missions" on public.missions for insert wit
 create policy "company deletes own draft missions" on public.missions for delete using (company_id=auth.uid() and status='draft');
 create policy "professionals discover open missions" on public.missions for select using (status in ('published','matching') and exists(select 1 from public.professionals p where p.id=auth.uid()));
 create policy "assigned professionals read lifecycle missions" on public.missions for select using (exists(select 1 from public.mission_assignments a where a.mission_id=id and a.professional_id=auth.uid()));
-create policy "assigned professionals read lifecycle requirements" on public.mission_requirements for select using (exists(select 1 from public.mission_assignments a join public.missions m on m.id=a.mission_id where a.mission_id=mission_requirements.mission_id and a.professional_id=auth.uid()));
+create policy "professionals read open mission requirements" on public.mission_requirements for select using (exists(select 1 from public.missions m where m.id=mission_requirements.mission_id and m.status in ('published','matching')) and exists(select 1 from public.professionals p where p.id=auth.uid()));
+create policy "assigned professionals read lifecycle requirements" on public.mission_requirements for select using (exists(select 1 from public.mission_assignments a where a.mission_id=mission_requirements.mission_id and a.professional_id=auth.uid()));
 
 -- Assignment and application mutations are server-controlled.
 drop policy if exists "assignment company write" on public.mission_assignments;
