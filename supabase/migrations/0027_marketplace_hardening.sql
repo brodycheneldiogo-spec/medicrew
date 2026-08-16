@@ -120,17 +120,47 @@ revoke all on function public.publish_mission(uuid) from public;
 grant execute on function public.publish_mission(uuid) to authenticated;
 
 -- Verification documents are submitted by professionals but their status is admin-controlled.
+drop policy if exists professional_documents_owner_select on public.professional_documents;
+drop policy if exists professional_documents_owner_insert on public.professional_documents;
 drop policy if exists "professional documents self update" on public.professional_documents;
 drop policy if exists "professional documents self delete" on public.professional_documents;
 drop policy if exists professional_documents_owner_update on public.professional_documents;
 drop policy if exists professional_documents_owner_delete on public.professional_documents;
-
 create policy professional_documents_owner_select
 on public.professional_documents for select to authenticated
 using ((select auth.uid())=professional_id);
 create policy professional_documents_owner_insert
 on public.professional_documents for insert to authenticated
 with check ((select auth.uid())=professional_id);
+
+-- Certification metadata is editable only through new submissions; verification status is admin-controlled.
+drop policy if exists "professional certs self" on public.professional_certifications;
+drop policy if exists professional_certifications_owner_select on public.professional_certifications;
+drop policy if exists professional_certifications_owner_insert on public.professional_certifications;
+drop policy if exists professional_certifications_owner_update on public.professional_certifications;
+drop policy if exists professional_certifications_owner_delete on public.professional_certifications;
+create policy professional_certifications_owner_select
+on public.professional_certifications for select to authenticated
+using ((select auth.uid())=professional_id);
+create policy professional_certifications_owner_insert
+on public.professional_certifications for insert to authenticated
+with check ((select auth.uid())=professional_id and status='pending');
+
+-- Skill verification is admin-controlled; professionals may edit unverified skill claims only.
+drop policy if exists "professional skills self" on public.professional_skills;
+create policy "professional skills read own"
+on public.professional_skills for select to authenticated
+using ((select auth.uid())=professional_id);
+create policy "professional skills insert own unverified"
+on public.professional_skills for insert to authenticated
+with check ((select auth.uid())=professional_id and verified=false);
+create policy "professional skills update own unverified"
+on public.professional_skills for update to authenticated
+using ((select auth.uid())=professional_id and verified=false)
+with check ((select auth.uid())=professional_id and verified=false);
+create policy "professional skills delete own"
+on public.professional_skills for delete to authenticated
+using ((select auth.uid())=professional_id);
 
 -- Notification writes and reads are mediated by owner-scoped policies/RPCs.
 alter table public.notifications enable row level security;
