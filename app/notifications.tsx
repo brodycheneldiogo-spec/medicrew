@@ -19,7 +19,7 @@ export default function Notifications(){
    ]);
    if(pe)throw pe; if(ne)throw ne; setRole((profile?.role||'professional') as Role); setItems((notes||[]) as N[]);
  }catch(e:any){setError(e?.message||'Unable to load notifications')}finally{setLoading(false)}};
- useEffect(()=>{load();if(!supabase)return;let ch=supabase.channel('my-notifications').on('postgres_changes',{event:'INSERT',schema:'public',table:'notifications',filter:'profile_id=eq.'},()=>load()).subscribe();return()=>{supabase?.removeChannel(ch)}},[]);
+ useEffect(()=>{load();if(!supabase)return;let ch=supabase.channel('my-notifications').on('postgres_changes',{event:'INSERT',schema:'public',table:'notifications'},payload=>{const n=payload.new as N;if(!n?.id)return;load()}).subscribe();return()=>{supabase?.removeChannel(ch)}},[]);
  const open=async(n:N)=>{if(supabase&&!n.read_at){const {error:e}=await supabase.rpc('mark_notification_read',{p_notification_id:n.id});if(!e)setItems(prev=>prev.map(x=>x.id===n.id?{...x,read_at:new Date().toISOString()}:x));}
    const mid=n.data?.mission_id; if(!mid)return;
    if(n.type==='message')return router.push({pathname:'/chat',params:{missionId:mid}});
