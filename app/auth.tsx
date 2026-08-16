@@ -12,9 +12,17 @@ export default function Auth() {
 
   async function signUp() {
     if (!supabase) return Alert.alert('Supabase not configured', 'Add EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY to your environment.');
-    if (!email || !password) return Alert.alert('Missing information', 'Enter your email and password.');
+    const cleanEmail = email.trim().toLowerCase();
+    if (!role || !['professional', 'company'].includes(role)) return Alert.alert('Choose an account type', 'Go back and choose Professional or Company.');
+    if (!cleanEmail || !cleanEmail.includes('@')) return Alert.alert('Invalid email', 'Enter a valid email address.');
+    if (password.length < 8) return Alert.alert('Password too short', 'Use at least 8 characters.');
+
     setLoading(true);
-    const { error } = await supabase.auth.signUp({ email: email.trim(), password });
+    const { error } = await supabase.auth.signUp({
+      email: cleanEmail,
+      password,
+      options: { data: { role } },
+    });
     setLoading(false);
     if (error) return Alert.alert('Sign up failed', error.message);
     router.replace({ pathname: '/onboarding', params: { role } });
@@ -29,9 +37,9 @@ export default function Auth() {
         <Text style={styles.subtitle}>Your account starts private. Verification comes before access to protected marketplace features.</Text>
       </View>
       <View>
-        <Text style={styles.label}>Email</Text><TextInput autoCapitalize="none" keyboardType="email-address" value={email} onChangeText={setEmail} placeholder="you@company.com" placeholderTextColor="#9AA19F" style={styles.input}/>
+        <Text style={styles.label}>Email</Text><TextInput autoCapitalize="none" keyboardType="email-address" autoCorrect={false} value={email} onChangeText={setEmail} placeholder="you@company.com" placeholderTextColor="#9AA19F" style={styles.input}/>
         <Text style={styles.label}>Password</Text><TextInput secureTextEntry value={password} onChangeText={setPassword} placeholder="At least 8 characters" placeholderTextColor="#9AA19F" style={styles.input}/>
-        <Pressable disabled={loading} style={styles.button} onPress={signUp}><Text style={styles.buttonText}>{loading ? 'Creating…' : 'Create account'}</Text></Pressable>
+        <Pressable disabled={loading} style={[styles.button, loading && { opacity: 0.6 }]} onPress={signUp}><Text style={styles.buttonText}>{loading ? 'Creating…' : 'Create account'}</Text></Pressable>
       </View>
       <Text style={styles.note}>By continuing, you agree to MediCrew's terms and privacy policy.</Text>
     </View></SafeAreaView>
