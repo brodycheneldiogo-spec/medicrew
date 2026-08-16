@@ -1,0 +1,14 @@
+{
+  "expo": {
+    "name": "MediCrew",
+    "slug": "medicrew",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "medicrew",
+    "userInterfaceStyle": "light",
+    "plugins": ["expo-router", "expo-secure-store"],
+    "ios": {"supportsTablet": true, "bundleIdentifier": "com.medicrew.app"},
+    "android": {"package": "com.medicrew.app"},
+    "experiments": {"typedRoutes": true}
+  }
+}
