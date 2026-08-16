@@ -2,6 +2,8 @@ export type SkillLevel = 'basic' | 'intermediate' | 'advanced' | 'expert';
 export type ProfessionalType = 'doctor' | 'nurse';
 export type Skill = { id: string; name: string; category: string };
 export type ProfessionalSkill = Skill & { level: SkillLevel; years: number };
+
+// These slugs intentionally mirror public.skills exactly. The database is the source of truth.
 export const skillCatalog: Skill[] = [
   { id: 'icu', name: 'ICU / Critical Care', category: 'Clinical' },
   { id: 'mechanical-ventilation', name: 'Mechanical ventilation', category: 'Airway & respiratory' },
@@ -32,11 +34,15 @@ export const skillCatalog: Skill[] = [
   { id: 'neonatal-transport', name: 'Neonatal transport', category: 'Specialized transport' },
   { id: 'trauma', name: 'Major trauma / polytrauma', category: 'Clinical' },
   { id: 'neurocritical', name: 'Neurocritical care', category: 'Clinical' },
-  { id: 'cardiac-critical', name: 'Cardiac critical care', category: 'Clinical' },
+  { id: 'cardiac-critical-care', name: 'Cardiac critical care', category: 'Clinical' },
 ];
+
 export const skillLevels = [
-  { id: 'basic', label: 'Basic' }, { id: 'intermediate', label: 'Intermediate' },
-  { id: 'advanced', label: 'Advanced' }, { id: 'expert', label: 'Expert' },
+  { id: 'basic', label: 'Basic' },
+  { id: 'intermediate', label: 'Intermediate' },
+  { id: 'advanced', label: 'Advanced' },
+  { id: 'expert', label: 'Expert' },
 ];
+
 export const specialties = ['Emergency Medicine', 'Critical Care / ICU', 'Anesthesiology', 'Cardiology', 'Neurology', 'Pediatrics', 'Neonatology', 'Trauma', 'Internal Medicine', 'Other'];
 export const languages = ['French', 'English', 'Spanish', 'German', 'Italian', 'Portuguese', 'Arabic', 'Dutch', 'Greek', 'Other'];
