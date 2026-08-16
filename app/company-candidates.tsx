@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
-import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View, ActivityIndicator } from 'react-native';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View, ActivityIndicator } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../lib/supabase';
 const C={bg:'#F7F8F6',ink:'#101214',muted:'#6F7672',green:'#18B889',soft:'#DDF5ED',white:'#FFF',line:'#E5E8E5',red:'#B83D3D'};
 type Candidate={match_id:string;professional_id:string;first_name:string;last_name:string;professional_type:'doctor'|'nurse';specialty:string|null;years_experience:number;medical_transport_years:number;air_ambulance_years:number;verification_status:string;score:number;eligible:boolean;reasons:string[]};

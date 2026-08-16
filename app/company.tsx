@@ -1,5 +1,6 @@
 import { router } from 'expo-router';
-import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const colors = { bg: '#F7F8F6', ink: '#101214', muted: '#6F7672', green: '#18B889', soft: '#DDF5ED', line: '#E5E8E5', white: '#FFFFFF' };
 

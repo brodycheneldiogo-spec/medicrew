@@ -1,4 +1,5 @@
-import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { colors, radii } from '../lib/theme';
 const missions=[{from:'Paris',to:'Barcelona',date:'25 AUG',time:'10:30',type:'COMMERCIAL FLIGHT',role:'ICU NURSE',pay:'€480',match:'97%'},{from:'Lyon',to:'Geneva',date:'28 AUG',time:'08:15',type:'ROAD TRANSPORT',role:'DOCTOR',pay:'€620',match:'94%'}];
