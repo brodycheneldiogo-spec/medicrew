@@ -13,7 +13,7 @@ export default function Welcome() {
       <Pressable style={[styles.choice, role==='professional'&&styles.choiceActive]} onPress={()=>setRole('professional')}><View><Text style={styles.choiceTitle}>I'm a medical professional</Text><Text style={styles.choiceText}>Find and accept transport missions</Text></View><Text style={styles.chevron}>›</Text></Pressable>
       <Pressable style={[styles.choice, role==='company'&&styles.choiceActive]} onPress={()=>setRole('company')}><View><Text style={styles.choiceTitle}>I'm a company</Text><Text style={styles.choiceText}>Find qualified professionals for missions</Text></View><Text style={styles.chevron}>›</Text></Pressable>
     </View>
-    <Pressable disabled={!role} style={[styles.button,!role&&styles.buttonDisabled]} onPress={()=>role==='company'?router.push('/company'):router.push({pathname:'/auth',params:{role}})}><Text style={styles.buttonText}>Continue</Text></Pressable>
+    <Pressable disabled={!role} style={[styles.button,!role&&styles.buttonDisabled]} onPress={()=>role&&router.push({pathname:'/auth',params:{role}})}><Text style={styles.buttonText}>Continue</Text></Pressable>
     <Text style={styles.footer}>MediCrew • Built for medical transport</Text>
   </View></SafeAreaView>;
 }
