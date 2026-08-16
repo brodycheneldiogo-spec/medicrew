@@ -1,16 +1,34 @@
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { supabase } from '../lib/supabase';
+import { router } from 'expo-router';
 import { colors, radii } from '../lib/theme';
+import { supabase } from '../lib/supabase';
 
 type N={id:string;title:string;body:string;type:string;data:any;read_at:string|null;created_at:string};
-export default function Notifications(){const [items,setItems]=useState<N[]>([]);const [loading,setLoading]=useState(true);const [error,setError]=useState('');
+type Role='professional'|'company'|'admin';
+
+export default function Notifications(){
+ const [items,setItems]=useState<N[]>([]); const [role,setRole]=useState<Role>('professional'); const [loading,setLoading]=useState(true); const [error,setError]=useState('');
  const unread=items.filter(x=>!x.read_at).length;
- const load=async()=>{if(!supabase)return;setLoading(true);setError('');const {data,error:e}=await supabase.from('notifications').select('id,title,body,type,data,read_at,created_at').order('created_at',{ascending:false}).limit(100);if(e)setError(e.message);else setItems((data||[]) as N[]);setLoading(false)};
- useEffect(()=>{load();if(!supabase)return;let ch=supabase.channel('my-notifications').on('postgres_changes',{event:'INSERT',schema:'public',table:'notifications'},p=>setItems(prev=>prev.some(x=>x.id===p.new.id)?prev:[p.new as N,...prev])).subscribe();return()=>{supabase?.removeChannel(ch)}},[]);
- const open=async(n:N)=>{if(supabase&&!n.read_at){const now=new Date().toISOString();const {error:e}=await supabase.from('notifications').update({read_at:now}).eq('id',n.id);if(!e)setItems(prev=>prev.map(x=>x.id===n.id?{...x,read_at:now}:x));}const mid=n.data?.mission_id;if(n.type==='message'&&mid)router.push({pathname:'/chat',params:{missionId:mid}});else if(n.type==='mission_application'&&mid)router.push({pathname:'/company-candidates',params:{missionId:mid}});else if(mid)router.push({pathname:'/mission',params:{id:mid}})};
- const markAllRead=async()=>{if(!supabase||unread===0)return;const now=new Date().toISOString();const {error:e}=await supabase.from('notifications').update({read_at:now}).is('read_at',null);if(e)setError(e.message);else setItems(prev=>prev.map(x=>({...x,read_at:x.read_at||now})))};
+ const load=async()=>{if(!supabase)return;setLoading(true);setError('');try{
+   const {data:{user}}=await supabase.auth.getUser(); if(!user)throw new Error('Session expired');
+   const [{data:profile,error:pe},{data:notes,error:ne}]=await Promise.all([
+     supabase.from('profiles').select('role').eq('id',user.id).single(),
+     supabase.rpc('get_my_notifications',{p_limit:100}),
+   ]);
+   if(pe)throw pe; if(ne)throw ne; setRole((profile?.role||'professional') as Role); setItems((notes||[]) as N[]);
+ }catch(e:any){setError(e?.message||'Unable to load notifications')}finally{setLoading(false)}};
+ useEffect(()=>{load();if(!supabase)return;let ch=supabase.channel('my-notifications').on('postgres_changes',{event:'INSERT',schema:'public',table:'notifications',filter:'profile_id=eq.'},()=>load()).subscribe();return()=>{supabase?.removeChannel(ch)}},[]);
+ const open=async(n:N)=>{if(supabase&&!n.read_at){const {error:e}=await supabase.rpc('mark_notification_read',{p_notification_id:n.id});if(!e)setItems(prev=>prev.map(x=>x.id===n.id?{...x,read_at:new Date().toISOString()}:x));}
+   const mid=n.data?.mission_id; if(!mid)return;
+   if(n.type==='message')return router.push({pathname:'/chat',params:{missionId:mid}});
+   if(role==='company'){
+     if(n.type==='mission_application')return router.push({pathname:'/company-candidates',params:{missionId:mid}});
+     return router.push({pathname:'/company-missions'});
+   }
+   return router.push({pathname:'/mission',params:{id:mid}});
+ };
+ const markAllRead=async()=>{if(!supabase||unread===0)return;const {error:e}=await supabase.rpc('mark_all_notifications_read');if(e)setError(e.message);else setItems(prev=>prev.map(x=>({...x,read_at:x.read_at||new Date().toISOString()})))};
  return <SafeAreaView style={s.safe}><View style={s.header}><Pressable onPress={()=>router.back()}><Text style={s.back}>‹ Back</Text></Pressable><View style={s.headerTitle}><Text style={s.title}>Notifications</Text>{unread>0?<View style={s.badge}><Text style={s.badgeText}>{unread>99?'99+':unread}</Text></View>:null}</View><Pressable disabled={unread===0} onPress={markAllRead}><Text style={[s.readAll,unread===0&&s.disabledText]}>Read all</Text></Pressable></View>{error?<View style={s.error}><Text style={s.errorText}>{error}</Text></View>:null}<ScrollView contentContainerStyle={s.container}>{loading?<ActivityIndicator color={colors.green} size="large"/>:items.length===0?<View style={s.empty}><Text style={s.emptyTitle}>You're all caught up.</Text><Text style={s.emptyText}>Mission activity and important updates will appear here.</Text></View>:items.map(n=><Pressable key={n.id} onPress={()=>open(n)} style={[s.item,!n.read_at&&s.unread]}><View style={[s.dot,!n.read_at&&s.dotActive]}/><View style={s.content}><View style={s.row}><Text style={s.itemTitle}>{n.title}</Text><Text style={s.time}>{new Date(n.created_at).toLocaleDateString()}</Text></View><Text style={s.body}>{n.body}</Text></View></Pressable>)}</ScrollView></SafeAreaView>}
 const s=StyleSheet.create({safe:{flex:1,backgroundColor:colors.paper},header:{padding:18,borderBottomWidth:1,borderBottomColor:colors.line,flexDirection:'row',alignItems:'center',justifyContent:'space-between'},back:{fontSize:16,fontWeight:'800',color:colors.ink},headerTitle:{flexDirection:'row',alignItems:'center',gap:7},title:{fontSize:19,fontWeight:'800',color:colors.ink},readAll:{fontSize:12,fontWeight:'800',color:colors.green},disabledText:{opacity:.35},badge:{minWidth:22,height:22,paddingHorizontal:6,borderRadius:11,backgroundColor:colors.green,alignItems:'center',justifyContent:'center'},badgeText:{fontSize:10,fontWeight:'900',color:colors.ink},container:{padding:16},item:{backgroundColor:colors.white,borderWidth:1,borderColor:colors.line,borderRadius:radii.md,padding:14,marginBottom:9,flexDirection:'row'},unread:{borderColor:'#BFE9DB'},dot:{width:8,height:8,borderRadius:4,backgroundColor:colors.line,marginTop:5,marginRight:12},dotActive:{backgroundColor:colors.green},content:{flex:1},row:{flexDirection:'row',justifyContent:'space-between',gap:8},itemTitle:{fontSize:14,fontWeight:'800',color:colors.ink,flex:1},time:{fontSize:10,color:colors.muted},body:{fontSize:12,color:colors.muted,lineHeight:18,marginTop:4},empty:{alignItems:'center',paddingTop:90},emptyTitle:{fontSize:19,fontWeight:'800',color:colors.ink},emptyText:{fontSize:13,color:colors.muted,textAlign:'center',marginTop:7,maxWidth:280},error:{margin:14,padding:10,borderRadius:10,backgroundColor:'#FFEDEC'},errorText:{color:'#A23A32',fontSize:12}});
