@@ -7,7 +7,6 @@ import { skillCatalog, skillLevels, SkillLevel } from '../../lib/professional';
 import { supabase } from '../../lib/supabase';
 
 type StoredSkill = { slug: string; level: SkillLevel; years?: number };
-
 type SaveResult = { saved_count?: number; slugs?: string[] };
 
 export default function Skills(){
@@ -31,52 +30,41 @@ export default function Skills(){
         nextYears[item.slug]=Number(item.years||0);
       }
     }
-    setSelected(next);
-    setYears(nextYears);
-    setSavedCount(null);
-    setLoading(false);
+    setSelected(next); setYears(nextYears); setSavedCount(null); setLoading(false);
   };
 
-  useEffect(()=>{let mounted=true;(async()=>{
-    if(!supabase){if(mounted){setError('Supabase is not configured.');setLoading(false);}return;}
-    const {data,error:rpcError}=await supabase.rpc('get_my_professional_details');
-    if(!mounted)return;
-    if(rpcError){setError(rpcError.message);setLoading(false);return;}
-    const next:Record<string,SkillLevel>={};
-    const nextYears:Record<string,number>={};
-    for(const item of ((data?.skills||[]) as StoredSkill[])){
-      if(skillCatalog.some(skill=>skill.id===item.slug)){
-        next[item.slug]=item.level;
-        nextYears[item.slug]=Number(item.years||0);
-      }
-    }
-    setSelected(next);setYears(nextYears);setLoading(false);
-  })();return()=>{mounted=false;};},[]);
+  useEffect(()=>{load();},[]);
 
   const save=async()=>{
     if(!supabase)return;
-    setSaving(true);setSavedCount(null);setError('');
+    setSaving(true); setSavedCount(null); setError('');
     const skills=Object.entries(selected).map(([slug,level])=>({slug,level,years:years[slug]||0}));
-    const {data,error:saveError}=await supabase.rpc('replace_my_skills',{p_skills:skills});
+    const {data,error:saveError}=await supabase.rpc('replace_my_skills_v2',{p_skills:skills});
     if(saveError){setError(saveError.message);setSaving(false);return;}
+
     const result=(data||{}) as SaveResult;
     const expected=skills.length;
+    const savedSlugs=Array.isArray(result.slugs)?result.slugs:[];
     const actual=Number(result.saved_count ?? -1);
-    if(actual!==expected){
+    const expectedSlugs=skills.map(s=>s.slug).sort();
+    const returnedSlugs=[...savedSlugs].sort();
+
+    if(actual!==expected || JSON.stringify(returnedSlugs)!==JSON.stringify(expectedSlugs)){
       setError(`Save verification failed: expected ${expected} skills, database saved ${actual}.`);
-      setSaving(false);
-      return;
+      setSaving(false); return;
     }
+
     const {data:check,error:checkError}=await supabase.rpc('get_my_professional_details');
     if(checkError){setError(checkError.message);setSaving(false);return;}
-    const persisted=((check?.skills||[]) as StoredSkill[]).filter(item=>selected[item.slug]);
-    if(persisted.length!==expected){
+    const persisted=((check?.skills||[]) as StoredSkill[]).filter(item=>Object.prototype.hasOwnProperty.call(selected,item.slug));
+    const persistedSlugs=persisted.map(item=>item.slug).sort();
+    if(persisted.length!==expected || JSON.stringify(persistedSlugs)!==JSON.stringify(expectedSlugs)){
       setError(`Save verification failed: ${expected} selected, ${persisted.length} readable after save.`);
-      setSaving(false);
-      return;
+      setSaving(false); return;
     }
-    setSavedCount(actual);
-    setSaving(false);
+
+    setSelected(Object.fromEntries(persisted.map(item=>[item.slug,item.level])));
+    setSavedCount(actual); setSaving(false);
   };
 
   return <SafeAreaView style={styles.safe}><View style={styles.screen}><ScrollView contentContainerStyle={styles.container}><Pressable onPress={()=>router.back()}><Text style={styles.back}>‹ Profile</Text></Pressable><Text style={styles.eyebrow}>CLINICAL PROFILE</Text><Text style={styles.title}>Skills & experience</Text><Text style={styles.sub}>Add only skills you can accurately demonstrate. Verified skills may be used for mission eligibility.</Text>{error?<View style={styles.error}><Text style={styles.errorText}>{error}</Text></View>:null}{loading?<View style={styles.loading}><ActivityIndicator size="large" color={colors.green}/><Text style={styles.muted}>Loading your skills…</Text></View>:groups.map(category=><View key={category} style={styles.group}><Text style={styles.groupTitle}>{category}</Text>{skillCatalog.filter(s=>s.category===category).map(skill=><View key={skill.id} style={styles.skill}><View style={styles.skillHead}><Text style={styles.skillName}>{skill.name}</Text>{selected[skill.id]?<Text style={styles.selected}>ADDED</Text>:null}</View><View style={styles.levels}>{skillLevels.map(level=><Pressable key={level.id} onPress={()=>{setSelected({...selected,[skill.id]:level.id as SkillLevel});setSavedCount(null);setError('');}} style={[styles.level,selected[skill.id]===level.id&&styles.levelActive]}><Text style={[styles.levelText,selected[skill.id]===level.id&&styles.levelTextActive]}>{level.label}</Text></Pressable>)}</View></View>)}</View>)}<View style={styles.bottomSpace}/></ScrollView><View style={styles.footer}>{savedCount!==null?<Text style={styles.saved}>✓ {savedCount} skill{savedCount===1?'':'s'} saved and verified</Text>:null}<Pressable disabled={loading||saving} style={[styles.button,(loading||saving)&&styles.disabled]} onPress={save}>{saving?<ActivityIndicator color={colors.white}/>:<Text style={styles.buttonText}>{savedCount!==null?'Save changes':'Save skills'}</Text>}</Pressable></View></View></SafeAreaView>
