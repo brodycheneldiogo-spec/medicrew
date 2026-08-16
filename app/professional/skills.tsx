@@ -8,33 +8,77 @@ import { supabase } from '../../lib/supabase';
 
 type StoredSkill = { slug: string; level: SkillLevel; years?: number };
 
+type SaveResult = { saved_count?: number; slugs?: string[] };
+
 export default function Skills(){
   const [selected,setSelected]=useState<Record<string,SkillLevel>>({});
   const [years,setYears]=useState<Record<string,number>>({});
   const [loading,setLoading]=useState(true);
   const [saving,setSaving]=useState(false);
-  const [saved,setSaved]=useState(false);
+  const [savedCount,setSavedCount]=useState<number | null>(null);
   const [error,setError]=useState('');
   const groups=useMemo(()=>Array.from(new Set(skillCatalog.map(s=>s.category))),[]);
 
+  const load=async()=>{
+    if(!supabase){setError('Supabase is not configured.');setLoading(false);return;}
+    const {data,error:rpcError}=await supabase.rpc('get_my_professional_details');
+    if(rpcError){setError(rpcError.message);setLoading(false);return;}
+    const next:Record<string,SkillLevel>={};
+    const nextYears:Record<string,number>={};
+    for(const item of ((data?.skills||[]) as StoredSkill[])){
+      if(skillCatalog.some(skill=>skill.id===item.slug)){
+        next[item.slug]=item.level;
+        nextYears[item.slug]=Number(item.years||0);
+      }
+    }
+    setSelected(next);
+    setYears(nextYears);
+    setSavedCount(null);
+    setLoading(false);
+  };
+
   useEffect(()=>{let mounted=true;(async()=>{
     if(!supabase){if(mounted){setError('Supabase is not configured.');setLoading(false);}return;}
-    const {data,rpcError}=await Promise.resolve(supabase.rpc('get_my_professional_details')).then(({data,error})=>({data,rpcError:error}));
+    const {data,error:rpcError}=await supabase.rpc('get_my_professional_details');
     if(!mounted)return;
-    if(rpcError)setError(rpcError.message);
-    else if(data?.skills){const next:Record<string,SkillLevel>={};const nextYears:Record<string,number>={};for(const item of data.skills as StoredSkill[]){next[item.slug]=item.level;nextYears[item.slug]=Number(item.years||0);}setSelected(next);setYears(nextYears);}
-    setLoading(false);
+    if(rpcError){setError(rpcError.message);setLoading(false);return;}
+    const next:Record<string,SkillLevel>={};
+    const nextYears:Record<string,number>={};
+    for(const item of ((data?.skills||[]) as StoredSkill[])){
+      if(skillCatalog.some(skill=>skill.id===item.slug)){
+        next[item.slug]=item.level;
+        nextYears[item.slug]=Number(item.years||0);
+      }
+    }
+    setSelected(next);setYears(nextYears);setLoading(false);
   })();return()=>{mounted=false;};},[]);
 
   const save=async()=>{
     if(!supabase)return;
-    setSaving(true);setSaved(false);setError('');
+    setSaving(true);setSavedCount(null);setError('');
     const skills=Object.entries(selected).map(([slug,level])=>({slug,level,years:years[slug]||0}));
-    const {error}=await supabase.rpc('replace_my_skills',{p_skills:skills});
-    if(error)setError(error.message);else setSaved(true);
+    const {data,error:saveError}=await supabase.rpc('replace_my_skills',{p_skills:skills});
+    if(saveError){setError(saveError.message);setSaving(false);return;}
+    const result=(data||{}) as SaveResult;
+    const expected=skills.length;
+    const actual=Number(result.saved_count ?? -1);
+    if(actual!==expected){
+      setError(`Save verification failed: expected ${expected} skills, database saved ${actual}.`);
+      setSaving(false);
+      return;
+    }
+    const {data:check,error:checkError}=await supabase.rpc('get_my_professional_details');
+    if(checkError){setError(checkError.message);setSaving(false);return;}
+    const persisted=((check?.skills||[]) as StoredSkill[]).filter(item=>selected[item.slug]);
+    if(persisted.length!==expected){
+      setError(`Save verification failed: ${expected} selected, ${persisted.length} readable after save.`);
+      setSaving(false);
+      return;
+    }
+    setSavedCount(actual);
     setSaving(false);
   };
 
-  return <SafeAreaView style={styles.safe}><View style={styles.screen}><ScrollView contentContainerStyle={styles.container}><Pressable onPress={()=>router.back()}><Text style={styles.back}>‹ Profile</Text></Pressable><Text style={styles.eyebrow}>CLINICAL PROFILE</Text><Text style={styles.title}>Skills & experience</Text><Text style={styles.sub}>Add only skills you can accurately demonstrate. Verified skills may be used for mission eligibility.</Text>{error?<View style={styles.error}><Text style={styles.errorText}>{error}</Text></View>:null}{loading?<View style={styles.loading}><ActivityIndicator size="large" color={colors.green}/><Text style={styles.muted}>Loading your skills…</Text></View>:groups.map(category=><View key={category} style={styles.group}><Text style={styles.groupTitle}>{category}</Text>{skillCatalog.filter(s=>s.category===category).map(skill=><View key={skill.id} style={styles.skill}><View style={styles.skillHead}><Text style={styles.skillName}>{skill.name}</Text>{selected[skill.id]?<Text style={styles.selected}>ADDED</Text>:null}</View><View style={styles.levels}>{skillLevels.map(level=><Pressable key={level.id} onPress={()=>{setSelected({...selected,[skill.id]:level.id as SkillLevel});setSaved(false);}} style={[styles.level,selected[skill.id]===level.id&&styles.levelActive]}><Text style={[styles.levelText,selected[skill.id]===level.id&&styles.levelTextActive]}>{level.label}</Text></Pressable>)}</View></View>)}</View>)}<View style={styles.bottomSpace}/></ScrollView><View style={styles.footer}>{saved?<Text style={styles.saved}>✓ Skills saved</Text>:null}<Pressable disabled={loading||saving} style={[styles.button,(loading||saving)&&styles.disabled]} onPress={save}>{saving?<ActivityIndicator color={colors.white}/>:<Text style={styles.buttonText}>{saved?'Save changes':'Save skills'}</Text>}</Pressable></View></View></SafeAreaView>
+  return <SafeAreaView style={styles.safe}><View style={styles.screen}><ScrollView contentContainerStyle={styles.container}><Pressable onPress={()=>router.back()}><Text style={styles.back}>‹ Profile</Text></Pressable><Text style={styles.eyebrow}>CLINICAL PROFILE</Text><Text style={styles.title}>Skills & experience</Text><Text style={styles.sub}>Add only skills you can accurately demonstrate. Verified skills may be used for mission eligibility.</Text>{error?<View style={styles.error}><Text style={styles.errorText}>{error}</Text></View>:null}{loading?<View style={styles.loading}><ActivityIndicator size="large" color={colors.green}/><Text style={styles.muted}>Loading your skills…</Text></View>:groups.map(category=><View key={category} style={styles.group}><Text style={styles.groupTitle}>{category}</Text>{skillCatalog.filter(s=>s.category===category).map(skill=><View key={skill.id} style={styles.skill}><View style={styles.skillHead}><Text style={styles.skillName}>{skill.name}</Text>{selected[skill.id]?<Text style={styles.selected}>ADDED</Text>:null}</View><View style={styles.levels}>{skillLevels.map(level=><Pressable key={level.id} onPress={()=>{setSelected({...selected,[skill.id]:level.id as SkillLevel});setSavedCount(null);setError('');}} style={[styles.level,selected[skill.id]===level.id&&styles.levelActive]}><Text style={[styles.levelText,selected[skill.id]===level.id&&styles.levelTextActive]}>{level.label}</Text></Pressable>)}</View></View>)}</View>)}<View style={styles.bottomSpace}/></ScrollView><View style={styles.footer}>{savedCount!==null?<Text style={styles.saved}>✓ {savedCount} skill{savedCount===1?'':'s'} saved and verified</Text>:null}<Pressable disabled={loading||saving} style={[styles.button,(loading||saving)&&styles.disabled]} onPress={save}>{saving?<ActivityIndicator color={colors.white}/>:<Text style={styles.buttonText}>{savedCount!==null?'Save changes':'Save skills'}</Text>}</Pressable></View></View></SafeAreaView>
 }
 const styles=StyleSheet.create({safe:{flex:1,backgroundColor:colors.paper},screen:{flex:1},container:{padding:24,paddingBottom:30},back:{fontSize:16,fontWeight:'800',color:colors.ink,marginBottom:25},eyebrow:{fontSize:11,fontWeight:'900',letterSpacing:1.4,color:colors.green},title:{fontSize:35,fontWeight:'800',color:colors.ink,letterSpacing:-1.1,marginTop:7},sub:{fontSize:14,lineHeight:21,color:colors.muted,marginTop:9},group:{marginTop:26},groupTitle:{fontSize:16,fontWeight:'800',color:colors.ink,marginBottom:9},skill:{backgroundColor:colors.white,borderWidth:1,borderColor:colors.line,borderRadius:radii.md,padding:14,marginBottom:9},skillHead:{flexDirection:'row',justifyContent:'space-between',alignItems:'center'},skillName:{fontSize:13,fontWeight:'800',color:colors.ink,flex:1},selected:{fontSize:8,fontWeight:'900',letterSpacing:.8,color:colors.green},levels:{flexDirection:'row',gap:6,marginTop:11},level:{paddingHorizontal:9,paddingVertical:7,borderRadius:radii.pill,borderWidth:1,borderColor:colors.line},levelActive:{backgroundColor:colors.ink,borderColor:colors.ink},levelText:{fontSize:9,fontWeight:'700',color:colors.muted},levelTextActive:{color:colors.white},button:{height:54,borderRadius:radii.md,backgroundColor:colors.ink,alignItems:'center',justifyContent:'center'},disabled:{opacity:.55},buttonText:{fontSize:16,fontWeight:'800',color:colors.white},footer:{padding:16,paddingBottom:20,borderTopWidth:1,borderTopColor:colors.line,backgroundColor:colors.paper},saved:{textAlign:'center',fontSize:12,fontWeight:'800',color:colors.green,marginBottom:8},error:{marginTop:16,padding:12,borderRadius:radii.md,backgroundColor:'#FDECEC'},errorText:{fontSize:12,color:'#A33A3A'},loading:{paddingVertical:40,alignItems:'center',gap:10},muted:{fontSize:12,color:colors.muted},bottomSpace:{height:20}});
