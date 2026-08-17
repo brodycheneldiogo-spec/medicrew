@@ -1,5 +1,5 @@
 import { LinearGradient } from 'expo-linear-gradient';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors, radii } from './theme';
 
 export function MediCrewLogo({compact=false}:{compact?:boolean}) {
@@ -13,9 +13,7 @@ export function MediCrewLogo({compact=false}:{compact?:boolean}) {
 }
 
 export function GradientButton({label,onPress,disabled=false}:{label:string;onPress:()=>void;disabled?:boolean}) {
-  return <LinearGradient colors={[colors.greenStart, colors.green, colors.greenEnd]} start={{x:0,y:0.5}} end={{x:1,y:0.5}} style={[styles.button,disabled&&styles.disabled]}>
-    <Text onPress={disabled?undefined:onPress} style={styles.buttonText}>{label}</Text>
-  </LinearGradient>;
+  return <Pressable disabled={disabled} onPress={onPress}><LinearGradient colors={[colors.greenStart, colors.green, colors.greenEnd]} start={{x:0,y:0.5}} end={{x:1,y:0.5}} style={[styles.button,disabled&&styles.disabled]}><Text style={styles.buttonText}>{label}</Text></LinearGradient></Pressable>;
 }
 
-const styles=StyleSheet.create({row:{flexDirection:'row',alignItems:'center',gap:10},compactRow:{gap:0},mark:{width:48,height:48,borderRadius:15,alignItems:'center',justifyContent:'center',position:'relative',shadowColor:'#087A5E',shadowOpacity:.18,shadowRadius:8,shadowOffset:{width:0,height:4},elevation:3},compactMark:{width:38,height:38,borderRadius:12},m:{fontSize:34,lineHeight:40,fontWeight:'900',color:'#EFFFF8',letterSpacing:-4},compactM:{fontSize:27,lineHeight:32},plusBox:{position:'absolute',right:5,bottom:5,width:16,height:16,borderRadius:5,backgroundColor:'#FFFFFF',alignItems:'center',justifyContent:'center'},compactPlusBox:{right:4,bottom:4,width:13,height:13,borderRadius:4},plus:{fontSize:14,lineHeight:16,fontWeight:'900',color:colors.greenDark},compactPlus:{fontSize:11,lineHeight:13},wordmark:{fontSize:25,fontWeight:'900',letterSpacing:-1.1,color:colors.ink},wordmarkCrew:{color:colors.greenDark},button:{height:56,borderRadius:radii.md,alignItems:'center',justifyContent:'center',overflow:'hidden'},buttonText:{color:colors.white,fontSize:16,fontWeight:'900',textAlign:'center',paddingHorizontal:20,paddingVertical:18},disabled:{opacity:.45}});
+const styles=StyleSheet.create({row:{flexDirection:'row',alignItems:'center',gap:10},compactRow:{gap:0},mark:{width:48,height:48,borderRadius:15,alignItems:'center',justifyContent:'center',position:'relative',shadowColor:'#087A5E',shadowOpacity:.18,shadowRadius:8,shadowOffset:{width:0,height:4},elevation:3},compactMark:{width:38,height:38,borderRadius:12},m:{fontSize:34,lineHeight:40,fontWeight:'900',color:'#EFFFF8',letterSpacing:-4},compactM:{fontSize:27,lineHeight:32},plusBox:{position:'absolute',right:5,bottom:5,width:16,height:16,borderRadius:5,backgroundColor:'#FFFFFF',alignItems:'center',justifyContent:'center'},compactPlusBox:{right:4,bottom:4,width:13,height:13,borderRadius:4},plus:{fontSize:14,lineHeight:16,fontWeight:'900',color:colors.greenDark},compactPlus:{fontSize:11,lineHeight:13},wordmark:{fontSize:25,fontWeight:'900',letterSpacing:-1.1,color:colors.ink},wordmarkCrew:{color:colors.greenDark},button:{height:56,borderRadius:radii.md,alignItems:'center',justifyContent:'center',overflow:'hidden'},buttonText:{color:colors.white,fontSize:16,fontWeight:'900',textAlign:'center'},disabled:{opacity:.45}});
