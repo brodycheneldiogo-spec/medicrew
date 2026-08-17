@@ -1,7 +1,6 @@
 import { useEffect } from 'react';
 import { Stack, router } from 'expo-router';
 import { StatusBar } from 'react-native';
-import { StripeProvider } from '@stripe/stripe-react-native';
 import * as Notifications from 'expo-notifications';
 import { colors } from '../lib/theme';
 import { registerPushNotifications } from '../lib/push';
@@ -18,7 +17,5 @@ function NotificationObserver(){
  return null;
 }
 export default function RootLayout(){
- const stripeKey=process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY||'';
- const stack=<><StatusBar barStyle="dark-content" backgroundColor={colors.paper}/><NotificationObserver/><Stack screenOptions={{headerShown:false,contentStyle:{backgroundColor:colors.paper}}}/></>;
- return stripeKey?<StripeProvider publishableKey={stripeKey} merchantIdentifier={process.env.EXPO_PUBLIC_STRIPE_MERCHANT_IDENTIFIER}>{stack}</StripeProvider>:stack;
+ return <><StatusBar barStyle="dark-content" backgroundColor={colors.paper}/><NotificationObserver/><Stack screenOptions={{headerShown:false,contentStyle:{backgroundColor:colors.paper}}}/></>;
 }
