@@ -1,6 +1,7 @@
 -- MediCrew: phone + email/password are mandatory account credentials.
--- A professional record may only exist for an account with a verified phone
--- and a non-empty email. No patient data is stored.
+-- New auth users may receive a temporary profile before phone/email completion;
+-- a professional record cannot be created until both credentials are complete.
+-- No patient data is stored.
 
 create or replace function public.require_complete_professional_credentials()
 returns trigger
@@ -13,30 +14,20 @@ declare
   v_phone text;
   v_phone_confirmed_at timestamptz;
 begin
-  select p.email, p.phone
-    into v_email, v_phone
-  from public.profiles p
-  where p.id = new.id;
+  select p.email, p.phone into v_email, v_phone
+  from public.profiles p where p.id = new.id;
 
-  select u.phone_confirmed_at
-    into v_phone_confirmed_at
-  from auth.users u
-  where u.id = new.id;
+  select u.phone_confirmed_at into v_phone_confirmed_at
+  from auth.users u where u.id = new.id;
 
   if nullif(trim(coalesce(v_phone, '')), '') is null then
     raise exception 'A verified phone number is required before creating a professional account';
   end if;
-
   if v_phone_confirmed_at is null then
     raise exception 'The phone number must be verified before creating a professional account';
   end if;
-
   if nullif(trim(coalesce(v_email, '')), '') is null then
     raise exception 'A valid email address is required before creating a professional account';
-  end if;
-
-  if nullif(trim(coalesce(new.id::text, '')), '') is null then
-    raise exception 'Invalid professional account';
   end if;
 
   return new;
@@ -52,25 +43,22 @@ as $$
 declare
   v_phone_confirmed_at timestamptz;
 begin
-  if new.role = 'professional' then
-    select u.phone_confirmed_at
-      into v_phone_confirmed_at
-    from auth.users u
-    where u.id = new.id;
+  -- The initial handle_new_user trigger intentionally creates a temporary
+  -- profile after phone signup. Only later credential updates are blocked.
+  if tg_op = 'UPDATE' and new.role = 'professional' then
+    select u.phone_confirmed_at into v_phone_confirmed_at
+    from auth.users u where u.id = new.id;
 
     if nullif(trim(coalesce(new.phone, '')), '') is null then
       raise exception 'Professional accounts require a phone number';
     end if;
-
     if v_phone_confirmed_at is null then
       raise exception 'Professional accounts require a verified phone number';
     end if;
-
     if nullif(trim(coalesce(new.email, '')), '') is null then
       raise exception 'Professional accounts require an email address';
     end if;
   end if;
-
   return new;
 end;
 $$;
@@ -82,7 +70,7 @@ for each row execute function public.require_complete_professional_credentials()
 
 drop trigger if exists profiles_require_professional_credentials on public.profiles;
 create trigger profiles_require_professional_credentials
-before insert or update of role, email, phone on public.profiles
+before update of role, email, phone on public.profiles
 for each row execute function public.prevent_incomplete_professional_profile();
 
 revoke all on function public.require_complete_professional_credentials() from public;
