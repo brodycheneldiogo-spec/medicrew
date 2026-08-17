@@ -1,78 +1,45 @@
+import { LinearGradient } from 'expo-linear-gradient';
 import { useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
-import { colors, radii } from '../lib/theme';
+import { colors, gradients, radii } from '../lib/theme';
 import { supabase } from '../lib/supabase';
 
 const organizationTypes = [
-  ['medical_transport', 'Medical transport'],
-  ['assistance', 'Assistance / repatriation'],
-  ['air_ambulance', 'Air ambulance'],
-  ['ambulance', 'Ambulance company'],
-  ['hospital', 'Hospital / clinic'],
-  ['other', 'Other healthcare organization'],
+  ['medical_transport', 'Medical transport'], ['assistance', 'Assistance / repatriation'], ['air_ambulance', 'Air ambulance'],
+  ['ambulance', 'Ambulance company'], ['hospital', 'Hospital / clinic'], ['other', 'Other healthcare organization'],
 ] as const;
 
 export default function Onboarding() {
   const { role } = useLocalSearchParams<{ role: 'professional' | 'company' }>();
-  const [step,setStep]=useState(0);
-  const [type,setType]=useState<'doctor'|'nurse'>('doctor');
-  const [name,setName]=useState('');
-  const [location,setLocation]=useState('');
-  const [siren,setSiren]=useState('');
-  const [siret,setSiret]=useState('');
-  const [organizationType,setOrganizationType]=useState('medical_transport');
-  const [contact,setContact]=useState('');
-  const [saving,setSaving]=useState(false);
-  const professional=role!=='company';
-  const total=professional?3:4;
-  const title=professional
-    ?['Tell us about you.','What do you do?','Where can you operate?'][step]
-    :['Tell us about your company.','Legal information.','Who should we contact?','Where are you based?'][step];
+  const [step,setStep]=useState(0); const [type,setType]=useState<'doctor'|'nurse'>('doctor'); const [name,setName]=useState(''); const [location,setLocation]=useState('');
+  const [siren,setSiren]=useState(''); const [siret,setSiret]=useState(''); const [organizationType,setOrganizationType]=useState('medical_transport'); const [contact,setContact]=useState(''); const [saving,setSaving]=useState(false);
+  const professional=role!=='company'; const total=professional?3:4;
+  const title=professional?['Tell us about you.','What do you do?','Where can you operate?'][step]:['Tell us about your company.','Legal information.','Who should we contact?','Where are you based?'][step];
 
   async function next(){
     if(step<total-1){setStep(step+1);return;}
     if(!supabase)return Alert.alert('Supabase not configured','Connect Supabase before completing onboarding.');
     const {data:{user}}=await supabase.auth.getUser();
     if(!user)return Alert.alert('Session expired','Please sign in again.');
+    if(professional && (!user.phone || !user.email)) return Alert.alert('Account incomplete','A verified phone number, email address and password are required before a professional profile can be created.');
     setSaving(true);
-    const parts=name.trim().split(/\s+/).filter(Boolean);
-    const first=parts[0]||null;
-    const last=parts.slice(1).join(' ')||null;
-    let error:any=null;
+    const parts=name.trim().split(/\s+/).filter(Boolean); const first=parts[0]||null; const last=parts.slice(1).join(' ')||null; let error:any=null;
     if(professional){
-      const p=await supabase.from('profiles').update({first_name:first,last_name:last}).eq('id',user.id);
-      if(p.error)error=p.error;
-      if(!error){
-        const r=await supabase.from('professionals').upsert({id:user.id,professional_type:type,available_now:false,international_available:false},{onConflict:'id'});
-        error=r.error;
-      }
+      const p=await supabase.from('profiles').update({first_name:first,last_name:last,email:user.email,phone:user.phone}).eq('id',user.id); if(p.error)error=p.error;
+      if(!error){const r=await supabase.from('professionals').upsert({id:user.id,professional_type:type,available_now:false,international_available:false},{onConflict:'id'}); error=r.error;}
     }else{
       if(!name.trim())return setSaving(false),Alert.alert('Company name required','Enter the legal company name.');
       if(siret.replace(/\s/g,'').length!==14)return setSaving(false),Alert.alert('SIRET required','Enter a valid 14-digit SIRET.');
-      const p=await supabase.from('profiles').update({first_name:first,phone:user.phone||null}).eq('id',user.id);
-      if(p.error)error=p.error;
-      if(!error){
-        const r=await supabase.from('companies').upsert({
-          id:user.id,
-          company_name:name.trim(),
-          siren:siren.replace(/\s/g,'')||null,
-          siret:siret.replace(/\s/g,'')||null,
-          address:location.trim()||null,
-          contact_name:contact.trim()||first||null,
-          organization_type:organizationType,
-        },{onConflict:'id'});
-        error=r.error;
-      }
+      const p=await supabase.from('profiles').update({first_name:first,email:user.email||null,phone:user.phone||null}).eq('id',user.id); if(p.error)error=p.error;
+      if(!error){const r=await supabase.from('companies').upsert({id:user.id,company_name:name.trim(),siren:siren.replace(/\s/g,'')||null,siret:siret.replace(/\s/g,'')||null,address:location.trim()||null,contact_name:contact.trim()||first||null,organization_type:organizationType},{onConflict:'id'}); error=r.error;}
     }
-    setSaving(false);
-    if(error)return Alert.alert('Could not save setup',error.message);
-    router.replace(professional?'/home':'/company');
+    setSaving(false); if(error)return Alert.alert('Could not save setup',error.message); router.replace(professional?'/home':'/company');
   }
 
   return <SafeAreaView style={styles.safe}><View style={styles.container}>
-    <View><Text style={styles.progress}>{step+1} / {total}</Text><Text style={styles.title}>{title}</Text><Text style={styles.subtitle}>{professional?'You can complete the remaining verification details later.':'Accurate company information helps MediCrew verify organizations before they can publish missions.'}</Text></View>
+    <View><Text style={styles.progress}>{step+1} / {total}</Text><Text style={styles.title}>{title}</Text><Text style={styles.subtitle}>{professional?'Your phone and account credentials are already verified. Complete your professional profile to continue.':'Accurate company information helps MediCrew verify organizations before they can publish missions.'}</Text></View>
     <View>
       {professional&&step===0&&<><Text style={styles.label}>Full name</Text><TextInput value={name} onChangeText={setName} placeholder="First and last name" placeholderTextColor="#9AA19F" style={styles.input}/></>}
       {professional&&step===1&&<View style={styles.choices}><Pressable onPress={()=>setType('doctor')} style={[styles.choice,type==='doctor'&&styles.active]}><Text style={styles.choiceTitle}>Doctor</Text><Text style={styles.choiceText}>Medical doctor</Text></Pressable><Pressable onPress={()=>setType('nurse')} style={[styles.choice,type==='nurse'&&styles.active]}><Text style={styles.choiceTitle}>Nurse</Text><Text style={styles.choiceText}>Registered nurse</Text></Pressable></View>}
@@ -81,8 +48,8 @@ export default function Onboarding() {
       {!professional&&step===1&&<><Text style={styles.label}>SIRET</Text><TextInput value={siret} onChangeText={setSiret} placeholder="14 digits" keyboardType="number-pad" maxLength={17} placeholderTextColor="#9AA19F" style={styles.input}/><Text style={[styles.label,{marginTop:14}]}>SIREN</Text><TextInput value={siren} onChangeText={setSiren} placeholder="9 digits (optional)" keyboardType="number-pad" maxLength={11} placeholderTextColor="#9AA19F" style={styles.input}/></>}
       {!professional&&step===2&&<><Text style={styles.label}>Primary contact</Text><TextInput value={contact} onChangeText={setContact} placeholder="Full name" placeholderTextColor="#9AA19F" style={styles.input}/><Text style={styles.helper}>The phone number used for this account remains the secure login contact.</Text></>}
       {!professional&&step===3&&<><Text style={styles.label}>Headquarters / registered address</Text><TextInput value={location} onChangeText={setLocation} placeholder="Address, city, country" placeholderTextColor="#9AA19F" style={styles.input}/></>}
-      <Pressable disabled={saving} style={[styles.button,saving&&{opacity:.6}]} onPress={next}><Text style={styles.buttonText}>{saving?'Saving…':step===total-1?'Finish company setup':'Continue'}</Text></Pressable>
+      <Pressable disabled={saving} onPress={next}><LinearGradient colors={gradients.primary} start={{x:0,y:.5}} end={{x:1,y:.5}} style={[styles.button,saving&&{opacity:.6}]}><Text style={styles.buttonText}>{saving?'Saving…':step===total-1?'Finish setup':'Continue'}</Text><Text style={styles.buttonArrow}>→</Text></LinearGradient></Pressable>
     </View><Text style={styles.footer}>MediCrew verification protects the marketplace. Company accounts must be approved before publishing missions.</Text>
   </View></SafeAreaView>;
 }
-const styles=StyleSheet.create({safe:{flex:1,backgroundColor:colors.paper},container:{flex:1,padding:24,justifyContent:'space-between'},progress:{fontSize:12,fontWeight:'800',color:colors.green,letterSpacing:1.2},title:{fontSize:38,lineHeight:42,fontWeight:'800',color:colors.ink,letterSpacing:-1.2,marginTop:12},subtitle:{fontSize:16,lineHeight:24,color:colors.muted,marginTop:12},label:{fontSize:13,fontWeight:'700',color:colors.ink,marginBottom:8},input:{height:54,borderWidth:1,borderColor:colors.line,borderRadius:radii.md,backgroundColor:colors.white,paddingHorizontal:15,fontSize:16,color:colors.ink},choices:{gap:12},choice:{padding:18,borderWidth:1,borderColor:colors.line,borderRadius:radii.md,backgroundColor:colors.white},active:{borderColor:colors.green,backgroundColor:colors.greenSoft},choiceTitle:{fontSize:17,fontWeight:'800',color:colors.ink},choiceText:{fontSize:13,color:colors.muted,marginTop:4},wrap:{flexDirection:'row',flexWrap:'wrap',gap:8},tag:{borderWidth:1,borderColor:colors.line,borderRadius:10,paddingHorizontal:11,paddingVertical:9,backgroundColor:colors.white},tagActive:{backgroundColor:colors.ink,borderColor:colors.ink},tagText:{fontSize:11,fontWeight:'700',color:colors.ink},tagTextActive:{color:colors.white},button:{height:56,borderRadius:radii.md,backgroundColor:colors.ink,alignItems:'center',justifyContent:'center',marginTop:18},buttonText:{color:colors.white,fontSize:16,fontWeight:'800'},helper:{fontSize:12,lineHeight:18,color:colors.muted,marginTop:8},footer:{fontSize:12,lineHeight:18,color:colors.muted,textAlign:'center'} });
+const styles=StyleSheet.create({safe:{flex:1,backgroundColor:colors.paper},container:{flex:1,padding:24,justifyContent:'space-between'},progress:{fontSize:12,fontWeight:'800',color:colors.greenDark,letterSpacing:1.2},title:{fontSize:38,lineHeight:42,fontWeight:'800',color:colors.ink,letterSpacing:-1.2,marginTop:12},subtitle:{fontSize:16,lineHeight:24,color:colors.muted,marginTop:12},label:{fontSize:13,fontWeight:'700',color:colors.ink,marginBottom:8},input:{height:54,borderWidth:1,borderColor:colors.line,borderRadius:radii.md,backgroundColor:colors.white,paddingHorizontal:15,fontSize:16,color:colors.ink},choices:{gap:12},choice:{padding:18,borderWidth:1,borderColor:colors.line,borderRadius:radii.md,backgroundColor:colors.white},active:{borderColor:colors.green,backgroundColor:colors.greenSoft},choiceTitle:{fontSize:17,fontWeight:'800',color:colors.ink},choiceText:{fontSize:13,color:colors.muted,marginTop:4},wrap:{flexDirection:'row',flexWrap:'wrap',gap:8},tag:{borderWidth:1,borderColor:colors.line,borderRadius:10,paddingHorizontal:11,paddingVertical:9,backgroundColor:colors.white},tagActive:{backgroundColor:colors.ink,borderColor:colors.ink},tagText:{fontSize:11,fontWeight:'700',color:colors.ink},tagTextActive:{color:colors.white},button:{height:56,borderRadius:radii.md,alignItems:'center',justifyContent:'center',flexDirection:'row',gap:10,overflow:'hidden',marginTop:18},buttonText:{color:colors.white,fontSize:16,fontWeight:'800'},buttonArrow:{color:'#EFFFF8',fontSize:22,fontWeight:'900'},helper:{fontSize:12,lineHeight:18,color:colors.muted,marginTop:8},footer:{fontSize:12,lineHeight:18,color:colors.muted,textAlign:'center'}});
