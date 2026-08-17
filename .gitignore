@@ -1,0 +1,11 @@
+node_modules/
+.expo/
+.env
+.env.*
+!.env.example
+supabase/.env
+supabase/functions/.env
+supabase/.env.local
+.DS_Store
+*.log
+coverage/
