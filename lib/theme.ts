@@ -13,4 +13,9 @@ export const colors = {
   warning: '#B97800',
 };
 
+export const gradients = {
+  primary: [colors.greenStart, colors.green, colors.greenEnd] as const,
+  soft: ['#E8FBE5', colors.greenSoft] as const,
+};
+
 export const radii = { sm: 10, md: 16, lg: 24, pill: 999 };
