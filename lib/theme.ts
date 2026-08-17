@@ -1,3 +1,4 @@
+// MediCrew visual system: the primary action color is the original green carried through a modern gradient.
 export const colors = {
   ink: '#101214',
   paper: '#F7F8F6',
