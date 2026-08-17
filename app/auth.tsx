@@ -6,90 +6,13 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { colors, radii } from '../lib/theme';
 import { MediCrewLogo } from '../lib/brand';
 import { supabase } from '../lib/supabase';
-
-function normalizePhone(value: string) { return value.replace(/[\s()-]/g, ''); }
-function validEmail(value: string) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim()); }
-
-export default function Auth() {
-  const { role: requestedRole } = useLocalSearchParams<{ role?: 'professional' | 'company' }>();
-  const [mode, setMode] = useState<'signup' | 'signin'>('signup');
-  const [step, setStep] = useState<1 | 2>(1);
-  const [phone, setPhone] = useState('');
-  const [code, setCode] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [otpSent, setOtpSent] = useState(false);
-  const [loading, setLoading] = useState(false);
-
-  async function sendCode() {
-    if (!supabase) return Alert.alert('Supabase not configured', 'Add the Supabase environment variables before creating an account.');
-    const cleanPhone = normalizePhone(phone.trim());
-    if (!/^\+[1-9]\d{7,14}$/.test(cleanPhone)) return Alert.alert('Invalid phone number', 'Use international format, for example +33 6 12 34 56 78.');
-    if (mode === 'signup' && !requestedRole) return Alert.alert('Choose an account type', 'Go back and choose Professional or Company.');
-    setLoading(true);
-    const { error } = await supabase.auth.signInWithOtp({ phone: cleanPhone, options: mode === 'signup' ? { data: { role: requestedRole } } : undefined });
-    setLoading(false);
-    if (error) return Alert.alert('Code could not be sent', error.message);
-    setOtpSent(true);
-  }
-
-  async function verifyCode() {
-    if (!supabase) return;
-    const cleanPhone = normalizePhone(phone.trim());
-    if (!/^\d{4,8}$/.test(code.trim())) return Alert.alert('Invalid code', 'Enter the verification code you received.');
-    setLoading(true);
-    const { data, error } = await supabase.auth.verifyOtp({ phone: cleanPhone, token: code.trim(), type: 'sms' });
-    setLoading(false);
-    if (error) return Alert.alert('Verification failed', error.message);
-    const role = (data.user?.user_metadata?.role || requestedRole) as 'professional' | 'company' | undefined;
-    if (!role) return Alert.alert('Account setup incomplete', 'Your account does not have a valid MediCrew role.');
-    if (mode === 'signin') { router.replace(role === 'company' ? '/company' : '/home'); return; }
-    setStep(2);
-  }
-
-  async function finishSignup() {
-    if (!supabase) return;
-    const cleanEmail = email.trim().toLowerCase();
-    if (!validEmail(cleanEmail)) return Alert.alert('Email required', 'Enter a valid email address.');
-    if (password.length < 8) return Alert.alert('Password too short', 'Your password must contain at least 8 characters.');
-    if (!/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/\d/.test(password)) return Alert.alert('Password too weak', 'Use at least one uppercase letter, one lowercase letter and one number.');
-    if (!requestedRole) return Alert.alert('Account type missing', 'Choose Professional or Company again.');
-    setLoading(true);
-    const { data, error } = await supabase.auth.updateUser({ email: cleanEmail, password, data: { role: requestedRole, signup_complete: true } });
-    if (error) { setLoading(false); return Alert.alert('Could not finish account', error.message); }
-    const userId = data.user?.id;
-    if (!userId) { setLoading(false); return Alert.alert('Account setup incomplete', 'Please try again.'); }
-    const profile = await supabase.from('profiles').update({ email: cleanEmail, phone: normalizePhone(phone.trim()) }).eq('id', userId);
-    setLoading(false);
-    if (profile.error) return Alert.alert('Could not save account details', profile.error.message);
-    router.replace(requestedRole === 'company' ? '/onboarding?role=company' : '/onboarding?role=professional');
-  }
-
-  return <SafeAreaView style={styles.safe}><KeyboardAvoidingView style={styles.flex} behavior={Platform.OS==='ios'?'padding':undefined}>
-    <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-      <Pressable onPress={()=>step===2?(setStep(1),setPassword('')):router.back()}><Text style={styles.back}>‹ Back</Text></Pressable>
-      <MediCrewLogo />
-      <View style={styles.header}><Text style={styles.progress}>{mode==='signup'?`${step} / 2`:'SECURE SIGN IN'}</Text><Text style={styles.eyebrow}>{mode==='signup' ? (step===1?'PHONE VERIFICATION':'ACCOUNT SECURITY') : 'WELCOME BACK'}</Text><Text style={styles.title}>{mode==='signup' ? (step===1?'Verify your phone.':'Secure your MediCrew account.') : 'Sign in to MediCrew.'}</Text><Text style={styles.subtitle}>{mode==='signup' ? (step===1?'Your phone is the first security check. You cannot skip this step.':'Your email and password are required to complete your account. Both are mandatory.') : 'Verify your mobile number to access your missions, matches and network.'}</Text></View>
-      <View style={styles.form}>
-        {step===1 ? <>
-          <Text style={styles.label}>Mobile number</Text>
-          <TextInput autoCapitalize="none" keyboardType="phone-pad" autoCorrect={false} value={phone} onChangeText={setPhone} placeholder="+33 6 12 34 56 78" placeholderTextColor="#9AA19F" style={styles.input} editable={!otpSent}/>
-          {otpSent ? <><Text style={styles.label}>Verification code</Text><TextInput keyboardType="number-pad" autoFocus value={code} onChangeText={setCode} placeholder="123456" placeholderTextColor="#9AA19F" style={styles.input} maxLength={8}/><Pressable disabled={loading} onPress={verifyCode}><LinearGradient colors={[colors.greenStart,colors.green,colors.greenEnd]} style={[styles.button,loading&&styles.disabled]} start={{x:0,y:.5}} end={{x:1,y:.5}}><Text style={styles.buttonText}>{loading?'Verifying…':'Verify phone & continue'}</Text></LinearGradient></Pressable><Pressable disabled={loading} style={styles.switch} onPress={()=>{setOtpSent(false);setCode('')}}><Text style={styles.switchText}>Change phone number</Text></Pressable></> : <Pressable disabled={loading} onPress={sendCode}><LinearGradient colors={[colors.greenStart,colors.green,colors.greenEnd]} style={[styles.button,loading&&styles.disabled]} start={{x:0,y:.5}} end={{x:1,y:.5}}><Text style={styles.buttonText}>{loading?'Sending code…':'Send verification code'}</Text></LinearGradient></Pressable>}
-        </> : <>
-          <View style={styles.stepBadge}><Text style={styles.stepBadgeText}>✓ PHONE VERIFIED</Text></View>
-          <Text style={styles.label}>Email address</Text>
-          <TextInput autoCapitalize="none" keyboardType="email-address" autoCorrect={false} value={email} onChangeText={setEmail} placeholder="you@example.com" placeholderTextColor="#9AA19F" style={styles.input}/>
-          <Text style={styles.label}>Password</Text>
-          <View style={styles.passwordWrap}><TextInput autoCapitalize="none" autoCorrect={false} secureTextEntry={!showPassword} value={password} onChangeText={setPassword} placeholder="At least 8 characters" placeholderTextColor="#9AA19F" style={styles.passwordInput}/><Pressable onPress={()=>setShowPassword(x=>!x)} accessibilityLabel={showPassword?'Hide password':'Show password'}><Text style={styles.eye}>{showPassword?'◉':'◌'}</Text></Pressable></View>
-          <View style={styles.rules}><Rule ok={password.length>=8} text="At least 8 characters"/><Rule ok={/[A-Z]/.test(password)} text="One uppercase letter"/><Rule ok={/[a-z]/.test(password)} text="One lowercase letter"/><Rule ok={/\d/.test(password)} text="One number"/></View>
-          <Pressable disabled={loading} onPress={finishSignup}><LinearGradient colors={[colors.greenStart,colors.green,colors.greenEnd]} style={[styles.button,loading&&styles.disabled]} start={{x:0,y:.5}} end={{x:1,y:.5}}><Text style={styles.buttonText}>{loading?'Creating account…':'Create my account'}</Text></LinearGradient></Pressable>
-        </>}
-        {step===1&&!otpSent&&<Pressable style={styles.switch} onPress={()=>{setMode(mode==='signup'?'signin':'signup');setCode('');setOtpSent(false);setStep(1)}}><Text style={styles.switchText}>{mode==='signup'?'Already have an account? Sign in with phone':'New to MediCrew? Create an account'}</Text></Pressable>}
-      </View>
-      <Text style={styles.note}>MediCrew requires a verified phone number and, for every new account, a valid email address and password. These credentials cannot be skipped.</Text>
-    </ScrollView>
-  </KeyboardAvoidingView></SafeAreaView>;
-}
+function normalizePhone(value: string){return value.replace(/[\s()-]/g,'')}
+function validEmail(value: string){return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())}
+export default function Auth(){
+ const {role:requestedRole}=useLocalSearchParams<{role?:'professional'|'company'}>(); const [mode,setMode]=useState<'signup'|'signin'>('signup'); const [step,setStep]=useState<1|2>(1); const [phone,setPhone]=useState(''); const [code,setCode]=useState(''); const [email,setEmail]=useState(''); const [password,setPassword]=useState(''); const [showPassword,setShowPassword]=useState(false); const [otpSent,setOtpSent]=useState(false); const [loading,setLoading]=useState(false);
+ async function sendCode(){if(!supabase)return Alert.alert('Supabase not configured','Add the Supabase environment variables before creating an account.');const cleanPhone=normalizePhone(phone.trim());if(!/^\+[1-9]\d{7,14}$/.test(cleanPhone))return Alert.alert('Invalid phone number','Use international format, for example +33 6 12 34 56 78.');if(mode==='signup'&&!requestedRole)return Alert.alert('Choose an account type','Go back and choose Professional or Company.');setLoading(true);const {error}=await supabase.auth.signInWithOtp({phone:cleanPhone,options:mode==='signup'?{data:{role:requestedRole}}:undefined});setLoading(false);if(error)return Alert.alert('Code could not be sent',error.message);setOtpSent(true)}
+ async function verifyCode(){if(!supabase)return;const cleanPhone=normalizePhone(phone.trim());if(!/^\d{4,8}$/.test(code.trim()))return Alert.alert('Invalid code','Enter the verification code you received.');setLoading(true);const {data,error}=await supabase.auth.verifyOtp({phone:cleanPhone,token:code.trim(),type:'sms'});if(error){setLoading(false);return Alert.alert('Verification failed',error.message)}const role=(data.user?.user_metadata?.role||requestedRole) as 'professional'|'company'|undefined;if(!role){setLoading(false);return Alert.alert('Account setup incomplete','Your account does not have a valid MediCrew role.')}if(data.user?.id){const {data:profile}=await supabase.from('profiles').select('role').eq('id',data.user.id).maybeSingle();if(profile?.role&&profile.role!==role){await supabase.auth.signOut();setLoading(false);return Alert.alert('Account type mismatch','This phone number is already registered with another MediCrew account type. Sign in with the existing account type.')}}setLoading(false);if(mode==='signin'){router.replace(role==='company'?'/company':'/home');return}setStep(2)}
+ async function finishSignup(){if(!supabase)return;const cleanEmail=email.trim().toLowerCase();if(!validEmail(cleanEmail))return Alert.alert('Email required','Enter a valid email address.');if(password.length<8)return Alert.alert('Password too short','Your password must contain at least 8 characters.');if(!/[A-Z]/.test(password)||!/[a-z]/.test(password)||!/\d/.test(password))return Alert.alert('Password too weak','Use at least one uppercase letter, one lowercase letter and one number.');if(!requestedRole)return Alert.alert('Account type missing','Choose Professional or Company again.');setLoading(true);const {data,error}=await supabase.auth.updateUser({email:cleanEmail,password,data:{role:requestedRole,signup_complete:true}});if(error){setLoading(false);return Alert.alert('Could not finish account',error.message)}const userId=data.user?.id;if(!userId){setLoading(false);return Alert.alert('Account setup incomplete','Please try again.')}const profile=await supabase.from('profiles').update({email:cleanEmail,phone:normalizePhone(phone.trim())}).eq('id',userId);setLoading(false);if(profile.error)return Alert.alert('Could not save account details',profile.error.message);router.replace(requestedRole==='company'?'/onboarding?role=company':'/onboarding?role=professional')}
+ return <SafeAreaView style={styles.safe}><KeyboardAvoidingView style={styles.flex} behavior={Platform.OS==='ios'?'padding':undefined}><ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled"><Pressable onPress={()=>step===2?(setStep(1),setPassword('')):router.back()}><Text style={styles.back}>‹ Back</Text></Pressable><MediCrewLogo/><View style={styles.header}><Text style={styles.progress}>{mode==='signup'?`${step} / 2`:'SECURE SIGN IN'}</Text><Text style={styles.eyebrow}>{mode==='signup'?(step===1?'PHONE VERIFICATION':'ACCOUNT SECURITY'):'WELCOME BACK'}</Text><Text style={styles.title}>{mode==='signup'?(step===1?'Verify your phone.':'Secure your MediCrew account.'):'Sign in to MediCrew.'}</Text><Text style={styles.subtitle}>{mode==='signup'?(step===1?'Your phone is the first security check. You cannot skip this step.':'Your email and password are required to complete your account. Both are mandatory.'):'Verify your mobile number to access your missions, matches and network.'}</Text></View><View style={styles.form}>{step===1?<><Text style={styles.label}>Mobile number</Text><TextInput autoCapitalize="none" keyboardType="phone-pad" autoCorrect={false} value={phone} onChangeText={setPhone} placeholder="+33 6 12 34 56 78" placeholderTextColor="#9AA19F" style={styles.input} editable={!otpSent}/>{otpSent?<><Text style={styles.label}>Verification code</Text><TextInput keyboardType="number-pad" autoFocus value={code} onChangeText={setCode} placeholder="123456" placeholderTextColor="#9AA19F" style={styles.input} maxLength={8}/><Pressable disabled={loading} onPress={verifyCode}><LinearGradient colors={[colors.greenStart,colors.green,colors.greenEnd]} style={[styles.button,loading&&styles.disabled]} start={{x:0,y:.5}} end={{x:1,y:.5}}><Text style={styles.buttonText}>{loading?'Verifying…':'Verify phone & continue'}</Text></LinearGradient></Pressable><Pressable disabled={loading} style={styles.switch} onPress={()=>{setOtpSent(false);setCode('')}}><Text style={styles.switchText}>Change phone number</Text></Pressable></>:<Pressable disabled={loading} onPress={sendCode}><LinearGradient colors={[colors.greenStart,colors.green,colors.greenEnd]} style={[styles.button,loading&&styles.disabled]} start={{x:0,y:.5}} end={{x:1,y:.5}}><Text style={styles.buttonText}>{loading?'Sending code…':'Send verification code'}</Text></LinearGradient></Pressable>}</>:<><View style={styles.stepBadge}><Text style={styles.stepBadgeText}>✓ PHONE VERIFIED</Text></View><Text style={styles.label}>Email address</Text><TextInput autoCapitalize="none" keyboardType="email-address" autoCorrect={false} value={email} onChangeText={setEmail} placeholder="you@example.com" placeholderTextColor="#9AA19F" style={styles.input}/><Text style={styles.label}>Password</Text><View style={styles.passwordWrap}><TextInput autoCapitalize="none" autoCorrect={false} secureTextEntry={!showPassword} value={password} onChangeText={setPassword} placeholder="At least 8 characters" placeholderTextColor="#9AA19F" style={styles.passwordInput}/><Pressable onPress={()=>setShowPassword(x=>!x)} accessibilityLabel={showPassword?'Hide password':'Show password'}><Text style={styles.eye}>{showPassword?'◉':'◌'}</Text></Pressable></View><View style={styles.rules}><Rule ok={password.length>=8} text="At least 8 characters"/><Rule ok={/[A-Z]/.test(password)} text="One uppercase letter"/><Rule ok={/[a-z]/.test(password)} text="One lowercase letter"/><Rule ok={/\d/.test(password)} text="One number"/></View><Pressable disabled={loading} onPress={finishSignup}><LinearGradient colors={[colors.greenStart,colors.green,colors.greenEnd]} style={[styles.button,loading&&styles.disabled]} start={{x:0,y:.5}} end={{x:1,y:.5}}><Text style={styles.buttonText}>{loading?'Creating account…':'Create my account'}</Text></LinearGradient></Pressable></>}{step===1&&!otpSent&&<Pressable style={styles.switch} onPress={()=>{setMode(mode==='signup'?'signin':'signup');setCode('');setOtpSent(false);setStep(1)}}><Text style={styles.switchText}>{mode==='signup'?'Already have an account? Sign in with phone':'New to MediCrew? Create an account'}</Text></Pressable>}</View><Text style={styles.note}>MediCrew requires a verified phone number and, for every new account, a valid email address and password. These credentials cannot be skipped.</Text></ScrollView></KeyboardAvoidingView></SafeAreaView>}
 function Rule({ok,text}:{ok:boolean;text:string}){return <Text style={[styles.rule,ok&&styles.ruleOk]}>{ok?'✓':'○'} {text}</Text>}
 const styles=StyleSheet.create({safe:{flex:1,backgroundColor:colors.paper},flex:{flex:1},container:{padding:24,paddingBottom:40,gap:18},back:{fontSize:16,fontWeight:'800',color:colors.ink},header:{marginTop:2},progress:{fontSize:10,fontWeight:'900',letterSpacing:1.3,color:colors.muted,marginBottom:7},eyebrow:{fontSize:11,fontWeight:'900',letterSpacing:1.5,color:colors.green},title:{fontSize:34,lineHeight:38,fontWeight:'900',color:colors.ink,letterSpacing:-1},subtitle:{fontSize:14,lineHeight:21,color:colors.muted,marginTop:10},form:{backgroundColor:colors.white,borderWidth:1,borderColor:colors.line,borderRadius:radii.lg,padding:18},label:{fontSize:12,fontWeight:'800',color:colors.ink,marginTop:13,marginBottom:7},input:{height:52,borderWidth:1,borderColor:colors.line,borderRadius:radii.md,backgroundColor:colors.paper,paddingHorizontal:14,fontSize:16,color:colors.ink},passwordWrap:{height:52,borderWidth:1,borderColor:colors.line,borderRadius:radii.md,backgroundColor:colors.paper,flexDirection:'row',alignItems:'center',paddingRight:13},passwordInput:{flex:1,height:50,paddingHorizontal:14,fontSize:16,color:colors.ink},eye:{fontSize:20,color:colors.greenDark,fontWeight:'800'},button:{height:55,borderRadius:radii.md,alignItems:'center',justifyContent:'center',marginTop:19,overflow:'hidden'},disabled:{opacity:.55},buttonText:{color:colors.white,fontWeight:'900',fontSize:15},switch:{alignItems:'center',paddingVertical:14},switchText:{color:colors.greenDark,fontWeight:'800',fontSize:12},stepBadge:{alignSelf:'flex-start',backgroundColor:colors.greenSoft,borderRadius:radii.pill,paddingHorizontal:10,paddingVertical:7},stepBadgeText:{fontSize:10,fontWeight:'900',color:colors.greenDark,letterSpacing:.7},rules:{marginTop:10,gap:4},rule:{fontSize:11,color:colors.muted},ruleOk:{color:colors.greenDark,fontWeight:'700'},note:{fontSize:11,lineHeight:17,color:colors.muted,textAlign:'center'}});
