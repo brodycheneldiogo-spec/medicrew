@@ -7,7 +7,6 @@ alter table public.missions add column if not exists country_code text, add colu
 alter table public.professional_documents add column if not exists storage_path text, add column if not exists original_name text, add column if not exists mime_type text, add column if not exists size_bytes bigint, add column if not exists uploaded_at timestamptz;
 create index if not exists professional_documents_storage_path_idx on public.professional_documents(storage_path) where storage_path is not null;
 insert into storage.buckets(id,name,public,file_size_limit,allowed_mime_types) values('professional-documents','professional-documents',false,10485760,array['application/pdf','image/jpeg','image/png','image/webp']::text[]) on conflict(id) do update set public=false,file_size_limit=10485760,allowed_mime_types=array['application/pdf','image/jpeg','image/png','image/webp']::text[];
-alter table storage.objects enable row level security;
 drop policy if exists professional_documents_storage_insert on storage.objects;
 drop policy if exists professional_documents_storage_select on storage.objects;
 drop policy if exists professional_documents_storage_update on storage.objects;

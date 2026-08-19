@@ -71,7 +71,9 @@ begin
  insert into public.notifications(profile_id,title,body,type,data) values(p_professional_id,'Professional verification updated','Your MediCrew verification status was updated.','professional_verification',jsonb_build_object('status',p_status)); end; $$;
 revoke all on function public.admin_verify_professional(uuid,public.verification_status) from public; grant execute on function public.admin_verify_professional(uuid,public.verification_status) to authenticated;
 
-create or replace function public.company_mission_matches(p_mission_id uuid) returns table(match_id uuid,professional_id uuid,first_name text,last_name text,avatar_url text,professional_type public.professional_type,specialty text,years_experience integer,medical_transport_years numeric,air_ambulance_years numeric,verification_status public.verification_status,score numeric,eligible boolean,reasons text[]) language sql security definer set search_path=public as $$
+drop function if exists public.company_mission_matches(uuid);
+
+create function public.company_mission_matches(p_mission_id uuid) returns table(match_id uuid,professional_id uuid,first_name text,last_name text,avatar_url text,professional_type public.professional_type,specialty text,years_experience integer,medical_transport_years numeric,air_ambulance_years numeric,verification_status public.verification_status,score numeric,eligible boolean,reasons text[]) language sql security definer set search_path=public as $$
  select mm.id,p.id,pr.first_name,pr.last_name,pr.avatar_url,p.professional_type,p.specialty,p.years_experience,p.medical_transport_years,p.air_ambulance_years,p.verification_status,mm.score,mm.eligible,mm.reasons
  from public.mission_matches mm join public.missions m on m.id=mm.mission_id join public.professionals p on p.id=mm.professional_id join public.profiles pr on pr.id=p.id
  where mm.mission_id=p_mission_id and m.company_id=auth.uid() and mm.eligible=true order by mm.score desc; $$;

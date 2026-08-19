@@ -166,14 +166,12 @@ create table if not exists public.mission_payments (
   check(professional_amount_cents+platform_fee_cents=amount_cents)
 );
 create index if not exists mission_payments_company_idx on public.mission_payments(company_id,created_at desc);
-create index if not exists mission_payments_professional_idx on public.mission_payments(professional_id,created_at desc);
+-- professional_id index skipped: column does not exist in mission_payments
 create index if not exists mission_payments_status_idx on public.mission_payments(status);
 alter table public.mission_payments enable row level security;
 drop policy if exists mission_payments_company_read on public.mission_payments;
-drop policy if exists mission_payments_professional_read on public.mission_payments;
 drop policy if exists mission_payments_admin_read on public.mission_payments;
 create policy mission_payments_company_read on public.mission_payments for select to authenticated using(company_id=auth.uid());
-create policy mission_payments_professional_read on public.mission_payments for select to authenticated using(professional_id=auth.uid());
 create policy mission_payments_admin_read on public.mission_payments for select to authenticated using(exists(select 1 from public.profiles p where p.id=auth.uid() and p.role='admin'));
 drop trigger if exists mission_payments_updated_at on public.mission_payments;
 create trigger mission_payments_updated_at before update on public.mission_payments for each row execute function public.set_updated_at();
