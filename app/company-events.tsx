@@ -1,0 +1,41 @@
+import { useEffect, useState } from 'react';
+import { Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { router } from 'expo-router';
+import { supabase } from '../lib/supabase';
+import { colors } from '../lib/theme';
+
+export default function CompanyEvents(){
+ const [eventName,setEventName]=useState(''); const [country,setCountry]=useState('France'); const [venue,setVenue]=useState('');
+ const [from,setFrom]=useState('Paris'); const [date,setDate]=useState('25/08/2026'); const [time,setTime]=useState('10:30');
+ const [duration,setDuration]=useState('8'); const [fee,setFee]=useState('500'); const [role,setRole]=useState<'doctor'|'nurse'>('nurse'); const [notes,setNotes]=useState(''); const [saving,setSaving]=useState(false); const [published,setPublished]=useState('');
+ useEffect(()=>{},[]);
+ async function publish(){
+  if(!supabase)return Alert.alert('Supabase unavailable'); const {data:{user}}=await supabase.auth.getUser(); if(!user)return Alert.alert('Sign in required');
+  if(!eventName.trim()||!country.trim()||!venue.trim())return Alert.alert('Missing information','Enter the event name, country and venue.');
+  const parts=date.split('/'); if(parts.length!==3)return Alert.alert('Invalid date','Use DD/MM/YYYY.');
+  const at=new Date(`${parts[2]}-${parts[1]}-${parts[0]}T${time}:00`); if(Number.isNaN(at.getTime()))return Alert.alert('Invalid schedule');
+  const d=Number(duration.replace(',','.')); const f=Number(fee.replace(',','.')); if(!Number.isFinite(d)||d<=0||!Number.isFinite(f)||f<0)return Alert.alert('Invalid duration or compensation');
+  setSaving(true);
+  const company=await supabase.from('companies').select('verification_status').eq('id',user.id).maybeSingle();
+  if(company.error||company.data?.verification_status!=='verified'){setSaving(false);return Alert.alert('Verification required','Your company must be verified before publishing an event mission.');}
+  const mission=await supabase.from('missions').insert({company_id:user.id,title:`${eventName.trim()} · ${role==='nurse'?'Nurse':'Doctor'}`,departure_location:from.trim(),destination_location:venue.trim(),departure_at:at.toISOString(),estimated_duration_hours:d,transport_type:'event',professional_type:role,compensation_cents:Math.round(f*100),expenses_covered:true,return_arrangements:null,status:'draft',mission_kind:'event',event_country:country.trim(),event_name:eventName.trim(),event_venue:venue.trim(),event_notes:notes.trim()||null}).select('id').single();
+  if(mission.error||!mission.data){setSaving(false);return Alert.alert('Could not create event',mission.error?.message||'Unknown error');}
+  const result=await supabase.rpc('publish_event_mission',{p_mission_id:mission.data.id}); setSaving(false);
+  if(result.error){await supabase.from('missions').delete().eq('id',mission.data.id);return Alert.alert('Could not publish event',result.error.message);}
+  setPublished(mission.data.id);
+ }
+ return <SafeAreaView style={s.safe}><ScrollView contentContainerStyle={s.container}><TouchableOpacity onPress={()=>router.back()}><Text style={s.back}>‹ Back</Text></TouchableOpacity><Text style={s.eyebrow}>MEDICREW · EVENTS</Text><Text style={s.title}>Create an event mission.</Text><Text style={s.subtitle}>Find a verified doctor or nurse for a sporting, cultural, corporate or other event. Do not enter patient-identifying information.</Text>
+ {published?<View style={s.success}><Text style={s.check}>✓</Text><Text style={s.successTitle}>Event published</Text><Text style={s.successText}>Eligible professionals have been matched and notified when they meet the event criteria.</Text><TouchableOpacity style={s.primary} onPress={()=>router.push({pathname:'/company-candidates',params:{missionId:published}})}><Text style={s.primaryText}>View eligible professionals →</Text></TouchableOpacity></View>:<>
+ <Section title="Event"><Field label="Event name" value={eventName} onChange={setEventName}/><Field label="Country" value={country} onChange={setCountry}/><Field label="Venue / city" value={venue} onChange={setVenue}/></Section>
+ <Section title="Schedule"><View style={s.two}><Field label="Departure / base" value={from} onChange={setFrom}/><Field label="Date" value={date} onChange={setDate}/></View><View style={s.two}><Field label="Start time" value={time} onChange={setTime}/><Field label="Duration (hours)" value={duration} onChange={setDuration} keyboardType="decimal-pad"/></View></Section>
+ <Section title="Professional"><View style={s.segment}>{(['doctor','nurse'] as const).map(x=><TouchableOpacity key={x} onPress={()=>setRole(x)} style={[s.segmentItem,role===x&&s.segmentActive]}><Text style={[s.segmentText,role===x&&s.segmentTextActive]}>{x==='doctor'?'Doctor':'Nurse'}</Text></TouchableOpacity>)}</View></Section>
+ <Section title="Compensation"><Field label="Professional fee (€)" value={fee} onChange={setFee} keyboardType="decimal-pad"/></Section>
+ <Section title="Operational notes"><TextInput multiline value={notes} onChangeText={setNotes} placeholder="Shift details, operational requirements, accommodation or travel notes…" style={s.notes}/></Section>
+ <View style={s.notice}><Text style={s.noticeTitle}>Smart matching</Text><Text style={s.noticeText}>MediCrew prioritizes verified professionals who are available for the event time and are based in the event country or have international availability enabled.</Text></View>
+ <TouchableOpacity disabled={saving} onPress={publish} style={[s.primary,saving&&{opacity:.6}]}><Text style={s.primaryText}>{saving?'Publishing…':'Publish event mission →'}</Text></TouchableOpacity></>}
+ </ScrollView></SafeAreaView>
+}
+function Section({title,children}:{title:string;children:React.ReactNode}){return <View style={s.section}><Text style={s.sectionTitle}>{title}</Text>{children}</View>}
+function Field({label,value,onChange,keyboardType}:{label:string;value:string;onChange:(v:string)=>void;keyboardType?:'default'|'decimal-pad'}){return <View style={s.field}><Text style={s.label}>{label}</Text><TextInput value={value} onChangeText={onChange} keyboardType={keyboardType} style={s.input}/></View>}
+const s=StyleSheet.create({safe:{flex:1,backgroundColor:colors.paper},container:{padding:22,paddingBottom:50},back:{color:colors.ink,fontWeight:'700',marginBottom:24},eyebrow:{color:colors.green,fontWeight:'900',fontSize:11,letterSpacing:1.5},title:{color:colors.ink,fontWeight:'900',fontSize:30,marginTop:7},subtitle:{color:colors.muted,fontSize:13,lineHeight:19,marginTop:7,marginBottom:24},section:{backgroundColor:colors.white,borderWidth:1,borderColor:colors.line,borderRadius:18,padding:17,marginBottom:13},sectionTitle:{fontSize:17,fontWeight:'900',color:colors.ink,marginBottom:14},two:{flexDirection:'row',gap:10},field:{flex:1,marginBottom:9},label:{fontSize:11,color:colors.muted,fontWeight:'700',marginBottom:6},input:{height:45,borderWidth:1,borderColor:colors.line,borderRadius:11,paddingHorizontal:12,color:colors.ink,backgroundColor:'#FAFBFA'},segment:{flexDirection:'row',backgroundColor:'#EEF1EF',padding:4,borderRadius:12},segmentItem:{flex:1,paddingVertical:11,alignItems:'center',borderRadius:9},segmentActive:{backgroundColor:colors.white},segmentText:{color:colors.muted,fontWeight:'700'},segmentTextActive:{color:colors.ink},notes:{minHeight:110,borderWidth:1,borderColor:colors.line,borderRadius:12,padding:12,textAlignVertical:'top',color:colors.ink},notice:{backgroundColor:colors.greenSoft,borderRadius:16,padding:16,marginBottom:14},noticeTitle:{fontWeight:'900',color:'#117A5B'},noticeText:{color:'#3C6659',fontSize:12,lineHeight:18,marginTop:5},primary:{minHeight:56,borderRadius:16,backgroundColor:colors.ink,alignItems:'center',justifyContent:'center',paddingHorizontal:18},primaryText:{color:colors.white,fontWeight:'900',fontSize:15},success:{backgroundColor:colors.white,borderWidth:1,borderColor:colors.line,borderRadius:20,padding:24,alignItems:'center',marginTop:25},check:{fontSize:30,color:'#117A5B',backgroundColor:colors.greenSoft,width:58,height:58,borderRadius:29,textAlign:'center',textAlignVertical:'center'},successTitle:{fontSize:22,fontWeight:'900',color:colors.ink,marginTop:14},successText:{color:colors.muted,textAlign:'center',lineHeight:19,marginVertical:12}});
