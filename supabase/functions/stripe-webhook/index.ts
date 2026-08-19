@@ -8,7 +8,12 @@ Deno.serve(async(req)=>{
  try{
   const stripe=new Stripe(stripeKey,{apiVersion:'2025-03-31.basil'});const event=await stripe.webhooks.constructEventAsync(body,signature,secret);const admin=createClient(Deno.env.get('SUPABASE_URL')!,Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
   const{data:claim,error:claimError}=await admin.from('stripe_webhook_events').insert({event_id:event.id,event_type:event.type});
-  if(claimError){if(claimError.code==='23505')return new Response(JSON.stringify({received:true,duplicate:true}),{status:200,headers:{'Content-Type':'application/json'}});throw claimError}
+  if(claimError){
+    if(claimError.code==='23505'){
+      const{data:existing}=await admin.from('stripe_webhook_events').select('processed_at').eq('event_id',event.id).maybeSingle();
+      if(existing?.processed_at)return new Response(JSON.stringify({received:true,duplicate:true}),{status:200,headers:{'Content-Type':'application/json'}});
+    }else throw claimError;
+  }
   if(event.type.startsWith('payment_intent.')){
    const intent=event.data.object as Stripe.PaymentIntent;const paymentId=intent.metadata?.payment_id;
    if(paymentId&&event.type==='payment_intent.succeeded'){
