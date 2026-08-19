@@ -23,9 +23,8 @@ function NotificationObserver() {
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') registerForCurrentUser();
     });
 
-    Notifications.getLastNotificationResponse().then?.((initial) => {
-      if (mounted && initial) routeNotification(initial.notification);
-    });
+    const initial = Notifications.getLastNotificationResponse();
+    if (mounted && initial) routeNotification(initial.notification);
 
     const sub = Notifications.addNotificationResponseReceivedListener((response) => {
       routeNotification(response.notification);
