@@ -84,13 +84,14 @@ $$;
 
 grant execute on function public.publish_event_mission(uuid) to authenticated;
 
--- Event mission visibility for professionals follows the same privacy model as transport missions.
+-- This policy may be added after an earlier branch/version already created a similar
+-- professional mission policy. Keep this migration idempotent when possible.
+drop policy if exists "professional reads event mission fields" on public.missions;
 create policy "professional reads event mission fields" on public.missions
 for select using (
   mission_kind='event' and status in ('published','matching','professional_selected','confirmed','in_progress','completed')
   and exists(select 1 from public.professionals p where p.id=auth.uid())
 );
 
--- Keep company mission creation server-authorized through the existing company policies/functions.
 comment on column public.missions.event_country is 'Country where the event/assignment takes place; ISO-like country name/code supplied by the company.';
 comment on column public.professionals.country_of_operation is 'Primary country where the professional is normally based/operates.';
