@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { router } from 'expo-router';
 import { colors } from '../lib/theme';
 import { supabase } from '../lib/supabase';
 import { skillCatalog } from '../lib/professional';
