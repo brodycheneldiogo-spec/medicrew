@@ -20,4 +20,19 @@ create policy company_billing_acceptances_company_read on public.company_billing
 create policy company_billing_acceptances_company_insert on public.company_billing_acceptances for insert to authenticated with check(company_id=auth.uid());
 create policy company_billing_acceptances_admin_read on public.company_billing_acceptances for select to authenticated using(exists(select 1 from public.profiles where id=auth.uid() and role='admin'));
 
+-- Legal-version gate moved here so there is no local migration that must be
+-- inserted before the already-applied remote migration history.
+create or replace function public.has_current_legal_acceptance(p_profile_id uuid default auth.uid())
+returns boolean language sql security definer set search_path=public stable as $$
+  select exists(
+    select 1 from public.legal_acceptances
+    where profile_id=p_profile_id
+      and terms_version='2.1'
+      and privacy_version='1.2'
+      and data_policy_version='1.1'
+  );
+$$;
+revoke all on function public.has_current_legal_acceptance(uuid) from public;
+grant execute on function public.has_current_legal_acceptance(uuid) to authenticated;
+
 comment on table public.company_billing_acceptances is 'Versioned B2B acceptance of MediCrew service-fee invoicing terms. Professional compensation is paid directly by the company outside MediCrew.';
