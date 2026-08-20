@@ -12,4 +12,5 @@ $$;
 revoke all on function public.has_current_legal_acceptance(uuid) from public;
 grant execute on function public.has_current_legal_acceptance(uuid) to authenticated;
 
-comment on table public.company_billing_acceptances is 'Versioned B2B acceptance of MediCrew service-fee invoicing terms. Professional compensation is paid directly by the company outside MediCrew.';
+-- B2B billing acceptance is reconciled in migration 0050 because migration 0046
+-- is already present in the remote migration history.
