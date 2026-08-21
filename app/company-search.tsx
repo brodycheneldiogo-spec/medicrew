@@ -6,13 +6,95 @@ import { supabase } from '../lib/supabase';
 import { avatarUrl } from '../lib/avatar';
 import { colors, radii } from '../lib/theme';
 
-type Pro={professional_id:string;first_name:string;last_name:string;email:string|null;avatar_url:string|null;professional_type:'doctor'|'nurse';specialty:string|null;nationality:string|null;country_of_operation:string|null;years_experience:number;medical_transport_years:number;air_ambulance_years:number;international_available:boolean;verification_status:string;passport_verified:boolean;passport_expires_at:string|null};
-export default function CompanySearch(){
- const[type,setType]=useState<'doctor'|'nurse'|''>('');const[nationality,setNationality]=useState('');const[country,setCountry]=useState('');const[specialty,setSpecialty]=useState('');const[minYears,setMinYears]=useState('');const[international,setInternational]=useState(false);const[items,setItems]=useState<Pro[]>([]);const[loading,setLoading]=useState(true);const[error,setError]=useState('');
- const search=async()=>{if(!supabase)return;setLoading(true);setError('');const{data,error:e}=await supabase.rpc('company_search_professionals',{p_professional_type:type||null,p_nationality:nationality.trim()||null,p_country_of_operation:country.trim()||null,p_specialty:specialty.trim()||null,p_min_years_experience:minYears?Math.max(0,Number(minYears)):null,p_international_only:international,p_verified_only:true,p_limit:100});if(e)setError(e.message);else setItems((data||[])as Pro[]);setLoading(false)};
- useEffect(()=>{search()},[]);
- return <SafeAreaView style={s.safe}><ScrollView contentContainerStyle={s.container} keyboardShouldPersistTaps="handled"><Pressable onPress={()=>router.back()}><Text style={s.back}>‹ Company</Text></Pressable><Text style={s.eyebrow}>PROFESSIONAL DIRECTORY</Text><Text style={s.title}>Find a professional.</Text><Text style={s.sub}>Search verified professionals by operational criteria. Nationality is shown for legitimate international/visa logistics, not for discriminatory selection.</Text>
- <View style={s.filters}><Text style={s.filterTitle}>Filters</Text><View style={s.row}><Pressable onPress={()=>setType(type==='doctor'?'':'doctor')} style={[s.chip,type==='doctor'&&s.active]}><Text style={[s.chipText,type==='doctor'&&s.activeText]}>Doctor</Text></Pressable><Pressable onPress={()=>setType(type==='nurse'?'':'nurse')} style={[s.chip,type==='nurse'&&s.active]}><Text style={[s.chipText,type==='nurse'&&s.activeText]}>Nurse</Text></Pressable></View><TextInput value={nationality} onChangeText={setNationality} placeholder="Nationality" style={s.input}/><TextInput value={country} onChangeText={setCountry} placeholder="Country of operation" style={s.input}/><TextInput value={specialty} onChangeText={setSpecialty} placeholder="Specialty" style={s.input}/><TextInput value={minYears} onChangeText={setMinYears} placeholder="Minimum years of experience" keyboardType="number-pad" style={s.input}/><Pressable onPress={()=>setInternational(!international)} style={s.toggle}><View style={[s.box,international&&s.boxOn]}><Text style={s.tick}>{international?'✓':''}</Text></View><Text style={s.toggleText}>International availability only</Text></Pressable><Pressable onPress={search} style={s.search}><Text style={s.searchText}>Search professionals</Text></Pressable></View>
- {error?<View style={s.error}><Text style={s.errorText}>{error}</Text></View>:null}<Text style={s.results}>{loading?'Searching…':`${items.length} professional${items.length===1?'':'s'}`}</Text>{loading?<ActivityIndicator size="large" color={colors.green}/>:items.length===0?<View style={s.empty}><Text style={s.emptyTitle}>No matching professionals</Text><Text style={s.emptyText}>Try removing a filter or widening the operating-country criteria.</Text></View>:items.map(p=><View key={p.professional_id} style={s.card}><View style={s.top}>{avatarUrl(p.avatar_url)?<Image source={{uri:avatarUrl(p.avatar_url)}} style={s.avatar}/>:<View style={s.initial}><Text style={s.initialText}>{p.first_name?.[0]}{p.last_name?.[0]}</Text></View>}<View style={s.identity}><Text style={s.name}>{p.first_name} {p.last_name}</Text><Text style={s.meta}>{p.professional_type==='nurse'?'Nurse':'Doctor'}{p.specialty?` · ${p.specialty}`:''}</Text></View><View style={s.verified}><Text style={s.verifiedText}>✓ VERIFIED</Text></View></View><View style={s.grid}><Stat label="Nationality" value={p.nationality||'—'}/><Stat label="Based in" value={p.country_of_operation||'—'}/><Stat label="Experience" value={`${p.years_experience||0} yrs`}/><Stat label="Passport" value={p.passport_verified?'Verified':'Pending'}/></View>{p.email?<Text style={s.email}>{p.email}</Text>:null}<Text style={s.note}>Passport number and document file are private. Only verification status and expiry eligibility are shown.</Text></View>)}</ScrollView></SafeAreaView>}
-function Stat({label,value}:{label:string;value:string}){return <View style={s.stat}><Text style={s.statLabel}>{label}</Text><Text style={s.statValue}>{value}</Text></View>}
-const s=StyleSheet.create({safe:{flex:1,backgroundColor:colors.paper},container:{padding:22,paddingBottom:50},back:{fontSize:15,fontWeight:'800',color:colors.ink,marginBottom:24},eyebrow:{fontSize:10,fontWeight:'900',letterSpacing:1.4,color:colors.green},title:{fontSize:32,fontWeight:'900',color:colors.ink,marginTop:7},sub:{fontSize:13,lineHeight:20,color:colors.muted,marginTop:7,marginBottom:15},filters:{backgroundColor:colors.white,borderWidth:1,borderColor:colors.line,borderRadius:radii.lg,padding:16},filterTitle:{fontSize:16,fontWeight:'900',color:colors.ink,marginBottom:10},row:{flexDirection:'row',gap:8,marginBottom:9},chip:{borderWidth:1,borderColor:colors.line,borderRadius:radii.pill,paddingHorizontal:13,paddingVertical:9},active:{backgroundColor:colors.ink,borderColor:colors.ink},chipText:{fontSize:12,fontWeight:'800',color:colors.ink},activeText:{color:colors.white},input:{height:46,borderWidth:1,borderColor:colors.line,borderRadius:radii.md,paddingHorizontal:12,color:colors.ink,marginTop:8,backgroundColor:'#FAFBFA'},toggle:{flexDirection:'row',alignItems:'center',marginTop:12},box:{width:22,height:22,borderWidth:1,borderColor:colors.line,borderRadius:6,alignItems:'center',justifyContent:'center',marginRight:9},boxOn:{backgroundColor:colors.ink,borderColor:colors.ink},tick:{color:colors.white,fontWeight:'900'},toggleText:{fontSize:12,fontWeight:'700',color:colors.ink},search:{height:48,borderRadius:radii.md,backgroundColor:colors.ink,alignItems:'center',justifyContent:'center',marginTop:14},searchText:{color:colors.white,fontWeight:'900'},error:{backgroundColor:'#FDECEC',padding:12,borderRadius:12,marginTop:12},errorText:{color:'#A33A3A',fontSize:12},results:{fontSize:17,fontWeight:'900',color:colors.ink,marginTop:20,marginBottom:10},empty:{backgroundColor:colors.white,borderWidth:1,borderColor:colors.line,borderRadius:radii.lg,padding:22},emptyTitle:{fontSize:16,fontWeight:'900',color:colors.ink},emptyText:{fontSize:12,lineHeight:18,color:colors.muted,marginTop:5},card:{backgroundColor:colors.white,borderWidth:1,borderColor:colors.line,borderRadius:radii.lg,padding:16,marginBottom:10},top:{flexDirection:'row',alignItems:'center'},avatar:{width:50,height:50,borderRadius:25},initial:{width:50,height:50,borderRadius:25,backgroundColor:colors.ink,alignItems:'center',justifyContent:'center'},initialText:{color:colors.green,fontWeight:'900'},identity:{flex:1,marginLeft:12},name:{fontSize:16,fontWeight:'900',color:colors.ink},meta:{fontSize:11,color:colors.muted,marginTop:3},verified:{backgroundColor:colors.greenSoft,borderRadius:radii.pill,paddingHorizontal:8,paddingVertical:5},verifiedText:{fontSize:8,fontWeight:'900',color:colors.greenDark},grid:{flexDirection:'row',flexWrap:'wrap',borderTopWidth:1,borderBottomWidth:1,borderColor:colors.line,marginTop:13,paddingVertical:9},stat:{width:'50%',paddingVertical:5},statLabel:{fontSize:9,color:colors.muted},statValue:{fontSize:12,fontWeight:'800',color:colors.ink,marginTop:2},email:{fontSize:12,fontWeight:'700',color:colors.ink,marginTop:10},note:{fontSize:9,lineHeight:14,color:colors.muted,marginTop:8}});
+type Pro = {
+  professional_id: string; first_name: string; last_name: string; email: string | null; avatar_url: string | null;
+  professional_type: 'doctor' | 'nurse'; specialty: string | null; nationality: string | null;
+  country_of_operation: string | null; years_experience: number; medical_transport_years: number;
+  air_ambulance_years: number; international_available: boolean; verification_status: string;
+  passport_verified: boolean; passport_expires_at: string | null;
+};
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return <View style={s.stat}><Text style={s.statLabel}>{label}</Text><Text style={s.statValue}>{value}</Text></View>;
+}
+
+export default function CompanySearch() {
+  const [type, setType] = useState<'doctor' | 'nurse' | ''>('');
+  const [nationality, setNationality] = useState('');
+  const [country, setCountry] = useState('');
+  const [specialty, setSpecialty] = useState('');
+  const [minYears, setMinYears] = useState('');
+  const [international, setInternational] = useState(false);
+  const [items, setItems] = useState<Pro[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  const search = async () => {
+    const client = supabase;
+    if (!client) return;
+    setLoading(true); setError('');
+    const { data, error: searchError } = await client.rpc('company_search_professionals', {
+      p_professional_type: type || null,
+      p_nationality: nationality.trim() || null,
+      p_country_of_operation: country.trim() || null,
+      p_specialty: specialty.trim() || null,
+      p_min_years_experience: minYears.trim() ? Math.max(0, Number(minYears)) : null,
+      p_international_only: international,
+      p_verified_only: true,
+      p_limit: 100,
+    });
+    if (searchError) { setError(searchError.message); setItems([]); }
+    else setItems((data ?? []) as Pro[]);
+    setLoading(false);
+  };
+
+  useEffect(() => { void search(); }, []);
+
+  return (
+    <SafeAreaView style={s.safe}>
+      <ScrollView contentContainerStyle={s.container} keyboardShouldPersistTaps="handled">
+        <Pressable onPress={() => router.back()}><Text style={s.back}>‹ Company</Text></Pressable>
+        <Text style={s.eyebrow}>PROFESSIONAL DIRECTORY</Text>
+        <Text style={s.title}>Find a professional.</Text>
+        <Text style={s.sub}>Search verified professionals by operational criteria. Nationality is shown for legitimate international and visa logistics, not for discriminatory selection.</Text>
+        <View style={s.filters}>
+          <Text style={s.filterTitle}>Filters</Text>
+          <View style={s.row}>
+            <Pressable onPress={() => setType(type === 'doctor' ? '' : 'doctor')} style={[s.chip, type === 'doctor' && s.active]}><Text style={[s.chipText, type === 'doctor' && s.activeText]}>Doctor</Text></Pressable>
+            <Pressable onPress={() => setType(type === 'nurse' ? '' : 'nurse')} style={[s.chip, type === 'nurse' && s.active]}><Text style={[s.chipText, type === 'nurse' && s.activeText]}>Nurse</Text></Pressable>
+          </View>
+          <TextInput value={nationality} onChangeText={setNationality} placeholder="Nationality" style={s.input} />
+          <TextInput value={country} onChangeText={setCountry} placeholder="Country of operation" style={s.input} />
+          <TextInput value={specialty} onChangeText={setSpecialty} placeholder="Specialty" style={s.input} />
+          <TextInput value={minYears} onChangeText={setMinYears} placeholder="Minimum years of experience" keyboardType="number-pad" style={s.input} />
+          <Pressable onPress={() => setInternational(!international)} style={s.toggle}><View style={[s.box, international && s.boxOn]}><Text style={s.tick}>{international ? '✓' : ''}</Text></View><Text style={s.toggleText}>International availability only</Text></Pressable>
+          <Pressable onPress={() => void search()} style={s.search}><Text style={s.searchText}>Search professionals</Text></Pressable>
+        </View>
+        {error ? <View style={s.error}><Text style={s.errorText}>{error}</Text></View> : null}
+        <Text style={s.results}>{loading ? 'Searching…' : `${items.length} professional${items.length === 1 ? '' : 's'}`}</Text>
+        {loading ? <ActivityIndicator size="large" color={colors.green} /> : items.length === 0 ? (
+          <View style={s.empty}><Text style={s.emptyTitle}>No matching professionals</Text><Text style={s.emptyText}>Try removing a filter or widening the operating-country criteria.</Text></View>
+        ) : items.map((p) => {
+          const avatar = avatarUrl(p.avatar_url);
+          return <View key={p.professional_id} style={s.card}>
+            <View style={s.top}>
+              {avatar ? <Image source={{ uri: avatar }} style={s.avatar} /> : <View style={s.initial}><Text style={s.initialText}>{p.first_name?.[0] ?? ''}{p.last_name?.[0] ?? ''}</Text></View>}
+              <View style={s.identity}><Text style={s.name}>{p.first_name} {p.last_name}</Text><Text style={s.meta}>{p.professional_type === 'nurse' ? 'Nurse' : 'Doctor'}{p.specialty ? ` · ${p.specialty}` : ''}</Text></View>
+              <View style={s.verified}><Text style={s.verifiedText}>✓ VERIFIED</Text></View>
+            </View>
+            <View style={s.grid}>
+              <Stat label="Nationality" value={p.nationality || '—'} /><Stat label="Based in" value={p.country_of_operation || '—'} />
+              <Stat label="Experience" value={`${p.years_experience || 0} yrs`} /><Stat label="Passport" value={p.passport_verified ? 'Verified' : 'Pending'} />
+            </View>
+            {p.email ? <Text style={s.email}>{p.email}</Text> : null}
+            <Text style={s.note}>Passport number and document file are private. Only verification status and expiry eligibility are shown.</Text>
+          </View>;
+        })}
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+const s = StyleSheet.create({
+  safe:{flex:1,backgroundColor:colors.paper},container:{padding:22,paddingBottom:50},back:{fontSize:15,fontWeight:'800',color:colors.ink,marginBottom:24},eyebrow:{fontSize:10,fontWeight:'900',letterSpacing:1.4,color:colors.green},title:{fontSize:32,fontWeight:'900',color:colors.ink,marginTop:7},sub:{fontSize:13,lineHeight:20,color:colors.muted,marginTop:7,marginBottom:15},filters:{backgroundColor:colors.white,borderWidth:1,borderColor:colors.line,borderRadius:radii.lg,padding:16},filterTitle:{fontSize:16,fontWeight:'900',color:colors.ink,marginBottom:10},row:{flexDirection:'row',gap:8,marginBottom:9},chip:{borderWidth:1,borderColor:colors.line,borderRadius:radii.pill,paddingHorizontal:13,paddingVertical:9},active:{backgroundColor:colors.ink,borderColor:colors.ink},chipText:{fontSize:12,fontWeight:'800',color:colors.ink},activeText:{color:colors.white},input:{height:46,borderWidth:1,borderColor:colors.line,borderRadius:radii.md,paddingHorizontal:12,color:colors.ink,marginTop:8,backgroundColor:'#FAFBFA'},toggle:{flexDirection:'row',alignItems:'center',marginTop:12},box:{width:22,height:22,borderWidth:1,borderColor:colors.line,borderRadius:6,alignItems:'center',justifyContent:'center',marginRight:9},boxOn:{backgroundColor:colors.ink,borderColor:colors.ink},tick:{color:colors.white,fontWeight:'900'},toggleText:{fontSize:12,fontWeight:'700',color:colors.ink},search:{height:48,borderRadius:radii.md,backgroundColor:colors.ink,alignItems:'center',justifyContent:'center',marginTop:14},searchText:{color:colors.white,fontWeight:'900'},error:{backgroundColor:'#FDECEC',padding:12,borderRadius:12,marginTop:12},errorText:{color:'#A33A3A',fontSize:12},results:{fontSize:17,fontWeight:'900',color:colors.ink,marginTop:20,marginBottom:10},empty:{backgroundColor:colors.white,borderWidth:1,borderColor:colors.line,borderRadius:radii.lg,padding:22},emptyTitle:{fontSize:16,fontWeight:'900',color:colors.ink},emptyText:{fontSize:12,lineHeight:18,color:colors.muted,marginTop:5},card:{backgroundColor:colors.white,borderWidth:1,borderColor:colors.line,borderRadius:radii.lg,padding:16,marginBottom:10},top:{flexDirection:'row',alignItems:'center'},avatar:{width:50,height:50,borderRadius:25},initial:{width:50,height:50,borderRadius:25,backgroundColor:colors.ink,alignItems:'center',justifyContent:'center'},initialText:{color:colors.green,fontWeight:'900'},identity:{flex:1,marginLeft:12},name:{fontSize:16,fontWeight:'900',color:colors.ink},meta:{fontSize:11,color:colors.muted,marginTop:3},verified:{backgroundColor:colors.greenSoft,borderRadius:radii.pill,paddingHorizontal:8,paddingVertical:5},verifiedText:{fontSize:8,fontWeight:'900',color:colors.greenDark},grid:{flexDirection:'row',flexWrap:'wrap',borderTopWidth:1,borderBottomWidth:1,borderColor:colors.line,marginTop:13,paddingVertical:9},stat:{width:'50%',paddingVertical:5},statLabel:{fontSize:9,color:colors.muted},statValue:{fontSize:12,fontWeight:'800',color:colors.ink,marginTop:2},email:{fontSize:12,fontWeight:'700',color:colors.ink,marginTop:10},note:{fontSize:9,lineHeight:14,color:colors.muted,marginTop:8}
+});
