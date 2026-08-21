@@ -139,7 +139,7 @@ create or replace function public.network_search_profiles(p_query text default n
 returns table(profile_id uuid,role public.account_role,display_name text,headline text,city text,country text,avatar_url text,subtitle text)
 language sql stable security definer set search_path=public as $$
  select p.id,p.role,
-  case when p.role='company' then c.company_name else trim(coalesce(p.first_name,'')||' '||coalesce(p.last_name,'')) end,
+  case when p.role='company' then c.company_name else trim(coalesce(p.first_name,'')||' '||coalesce(p.last_name,'')) end as display_name,
   p.headline,p.city,p.country,p.avatar_url,
   case when p.role='company' then c.company_type else concat(pr.professional_type::text,case when pr.specialty is not null then ' · '||pr.specialty else '' end) end
  from public.profiles p left join public.professionals pr on pr.id=p.id left join public.companies c on c.id=p.id
