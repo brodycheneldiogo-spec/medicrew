@@ -59,10 +59,8 @@ export default function Auth() {
   async function sendCode() {
     if (!requestedRole) return Alert.alert('Choose an account type', 'Choose Professional or Company first.');
     if (isDevTestPhone(phone)) {
-      setOtpSent(false);
-      setStep(2);
-      setEmail(DEV_TEST_EMAIL);
-      return Alert.alert('Development test account', 'SMS verification is skipped for this approved test number. Continue with Google using the approved test email.');
+      router.replace(requestedRole === 'company' ? '/onboarding?role=company' : '/onboarding?role=professional');
+      return;
     }
     const client = configuredClient();
     if (!client) return;
@@ -93,7 +91,7 @@ export default function Auth() {
     if (!validEmail(em)) return Alert.alert('Email required', 'Enter a valid email address.');
     if (!strong(password)) return Alert.alert('Password too weak', 'Use at least 8 characters with uppercase, lowercase and a number.');
     if (!accepted) return Alert.alert('Legal acceptance required', 'Accept the current Terms, Privacy Policy and Data Policy.');
-    if (isDevTestPhone(phone) && isDevTestEmail(em)) return Alert.alert('Test account', 'For this development account, use Continue with Google. SMS and MediCrew email verification are skipped.');
+    if (isDevTestPhone(phone) && isDevTestEmail(em)) return Alert.alert('Test account', 'Use the test phone button to enter the selected development flow directly.');
     setLoading(true);
     const { data, error } = await client.auth.updateUser({ email: em, password, data: { role: requestedRole, signup_complete: true } });
     if (error) { setLoading(false); return Alert.alert('Could not finish account', error.message); }
@@ -205,12 +203,12 @@ export default function Auth() {
               <Pressable style={s.switch} onPress={() => router.push('/forgot-password')}><Text style={s.switchText}>Forgot your password?</Text></Pressable>
             </> : step === 1 ? <>
               <Field label="Mobile number" value={phone} onChange={setPhone} keyboard="phone-pad" editable={!otpSent} />
-              {otpSent ? <><Field label="Verification code" value={code} onChange={setCode} keyboard="number-pad" /><Pressable disabled={loading} onPress={verifyPhone}><LinearGradient colors={[colors.greenStart, colors.green, colors.greenEnd]} style={s.button}><Text style={s.buttonText}>{loading ? 'Verifying…' : 'Verify phone & continue'}</Text></LinearGradient></Pressable></> : <Pressable disabled={loading} onPress={sendCode}><LinearGradient colors={[colors.greenStart, colors.green, colors.greenEnd]} style={s.button}><Text style={s.buttonText}>{loading ? 'Sending code…' : isDevTestPhone(phone) ? 'Continue with test number' : 'Send verification code'}</Text></LinearGradient></Pressable>}
+              {otpSent ? <><Field label="Verification code" value={code} onChange={setCode} keyboard="number-pad" /><Pressable disabled={loading} onPress={verifyPhone}><LinearGradient colors={[colors.greenStart, colors.green, colors.greenEnd]} style={s.button}><Text style={s.buttonText}>{loading ? 'Verifying…' : 'Verify phone & continue'}</Text></LinearGradient></Pressable></> : <Pressable disabled={loading} onPress={sendCode}><LinearGradient colors={[colors.greenStart, colors.green, colors.greenEnd]} style={s.button}><Text style={s.buttonText}>{loading ? 'Sending code…' : isDevTestPhone(phone) ? `Enter ${requestedRole === 'company' ? 'company' : 'professional'} test flow` : 'Send verification code'}</Text></LinearGradient></Pressable>}
               <Pressable style={s.switch} onPress={() => setMode('signin')}><Text style={s.switchText}>Already have an account? Sign in with email</Text></Pressable>
             </> : <>
               <View style={s.badge}><Text style={s.badgeText}>{devBypassActive ? '✓ DEVELOPMENT TEST NUMBER' : '✓ PHONE VERIFIED'}</Text></View>
               <Field label="Email address" value={email} onChange={setEmail} keyboard="email-address" editable={!devBypassActive} />
-              {!devBypassActive ? <><Text style={s.label}>Password</Text><Password value={password} onChange={setPassword} show={show} setShow={setShow} /><Text style={s.rules}>{strong(password) ? '✓ Strong password' : 'Use 8+ characters, uppercase, lowercase and a number.'}</Text></> : <Text style={s.rules}>Development test account: continue with the approved Google account.</Text>}
+              {!devBypassActive ? <><Text style={s.label}>Password</Text><Password value={password} onChange={setPassword} show={show} setShow={setShow} /><Text style={s.rules}>{strong(password) ? '✓ Strong password' : 'Use 8+ characters, uppercase, lowercase and a number.'}</Text></> : <Text style={s.rules}>Development test account.</Text>}
               <Pressable style={s.legal} onPress={() => setAccepted(v => !v)}><Text style={s.check}>{accepted ? '✓' : '○'}</Text><Text style={s.legalText}>I accept the current <Text style={s.link} onPress={() => router.push('/terms')}>Terms</Text>, <Text style={s.link} onPress={() => router.push('/privacy')}>Privacy</Text> and <Text style={s.link} onPress={() => router.push('/data-policy')}>Data Policy</Text>.</Text></Pressable>
               {!devBypassActive && <Pressable disabled={loading} onPress={finishSignup}><LinearGradient colors={[colors.greenStart, colors.green, colors.greenEnd]} style={s.button}><Text style={s.buttonText}>{loading ? 'Creating account…' : 'Create with email & password'}</Text></LinearGradient></Pressable>}
               <GoogleButton busy={googleBusy} onPress={google} />
