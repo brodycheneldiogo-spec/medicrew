@@ -1,22 +1,627 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import type { ReactNode } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Linking,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../lib/supabase';
 import { colors } from '../lib/theme';
 
-type Queue={documents:any[];certifications:any[];company_documents:any[]};
-export default function Admin(){
- const[loading,setLoading]=useState(true),[authorized,setAuthorized]=useState(false),[companies,setCompanies]=useState<any[]>([]),[professionals,setProfessionals]=useState<any[]>([]),[queue,setQueue]=useState<Queue>({documents:[],certifications:[],company_documents:[]}),[error,setError]=useState(''),[busy,setBusy]=useState('');
- async function load(){if(!supabase)return;setLoading(true);setError('');const{data:{user}}=await supabase.auth.getUser();if(!user){setError('Sign in required');setLoading(false);return}const{data:profile}=await supabase.from('profiles').select('role').eq('id',user.id).maybeSingle();if(profile?.role!=='admin'){setAuthorized(false);setError('Admin access required');setLoading(false);return}setAuthorized(true);const[co,pr,vq,cq]=await Promise.all([supabase.from('companies').select('id,company_name,organization_type,verification_status,created_at').order('created_at',{ascending:false}),supabase.from('professionals').select('id,professional_type,specialty,verification_status,years_experience,created_at').order('created_at',{ascending:false}),supabase.rpc('admin_verification_queue_v2'),supabase.rpc('admin_company_verification_queue')]);const e=co.error||pr.error||vq.error||cq.error;if(e)setError(e.message);else{setCompanies(co.data||[]);setProfessionals(pr.data||[]);setQueue({documents:vq.data?.documents||[],certifications:vq.data?.certifications||[],company_documents:cq.data?.documents||[]})}setLoading(false)}
- useEffect(()=>{load()},[]);
- async function update(type:'company'|'professional',id:string,status:'verified'|'rejected'){if(!supabase)return;setBusy(`${type}:${id}`);const rpc=type==='company'?'admin_verify_company':'admin_verify_professional';const args=type==='company'?{p_company_id:id,p_status:status}:{p_professional_id:id,p_status:status};const{error}=await supabase.rpc(rpc,args);if(error)Alert.alert('Action failed',error.message);else await load();setBusy('')}
- async function verifyDoc(id:string,status:'verified'|'rejected'){if(!supabase)return;setBusy(`doc:${id}`);const{error}=await supabase.rpc('admin_verify_document',{p_document_id:id,p_status:status,p_reason:status==='rejected'?'Verification requirements not met.':null});if(error)Alert.alert('Action failed',error.message);else await load();setBusy('')}
- async function verifyCert(id:string,status:'verified'|'rejected'){if(!supabase)return;setBusy(`cert:${id}`);const{error}=await supabase.rpc('admin_verify_certification',{p_certification_id:id,p_status:status});if(error)Alert.alert('Action failed',error.message);else await load();setBusy('')}
- async function verifyCompanyDoc(id:string,status:'verified'|'rejected'){if(!supabase)return;setBusy(`companydoc:${id}`);const{error}=await supabase.rpc('admin_verify_company_document',{p_document_id:id,p_status:status,p_reason:status==='rejected'?'Company registration evidence was not sufficient.':null});if(error)Alert.alert('Action failed',error.message);else await load();setBusy('')}
- async function viewDocument(bucket:string,path:string){if(!supabase||!path)return;const{data,error}=await supabase.storage.from(bucket).createSignedUrl(path,300);if(error)return Alert.alert('Could not open document',error.message);if(data?.signedUrl)Linking.openURL(data.signedUrl)}
- const users=useMemo(()=>{const map=new Map<string,{name:string;items:any[]}>();for(const x of queue.documents){const key=x.professional_id||`${x.first_name}-${x.last_name}`;if(!map.has(key))map.set(key,{name:`${x.first_name||''} ${x.last_name||''}`.trim()||'Professional',items:[]});map.get(key)!.items.push({...x,_kind:'document'})}for(const x of queue.certifications){const key=x.professional_id||`${x.first_name}-${x.last_name}`;if(!map.has(key))map.set(key,{name:`${x.first_name||''} ${x.last_name||''}`.trim()||'Professional',items:[]});map.get(key)!.items.push({...x,_kind:'certification'})}return [...map.values()].sort((a,b)=>a.name.localeCompare(b.name))},[queue]);
- if(loading)return <SafeAreaView style={s.safe}><ActivityIndicator size="large" color={colors.green}/></SafeAreaView>;
- if(!authorized)return <SafeAreaView style={s.safe}><View style={s.center}><Text style={s.title}>Operations access</Text><Text style={s.errorText}>{error||'Admin access required.'}</Text></View></SafeAreaView>;
- return <SafeAreaView style={s.safe}><ScrollView contentContainerStyle={s.container}><Text style={s.eyebrow}>MEDICREW · ADMIN</Text><Text style={s.title}>Operations.</Text><Text style={s.subtitle}>Verify accounts and uploaded evidence. Mission compensation is collected through MediCrew before a mission can start and released only after the completion workflow.</Text>{error?<View style={s.error}><Text style={s.errorText}>{error}</Text><Pressable onPress={load}><Text style={s.retry}>Retry</Text></Pressable></View>:null}<View style={s.stats}><Stat value={String(companies.filter(x=>x.verification_status==='pending').length)} label="companies pending"/><Stat value={String(professionals.filter(x=>x.verification_status==='pending').length)} label="professionals pending"/><Stat value={String(queue.documents.length+queue.certifications.length+queue.company_documents.length)} label="evidence pending"/></View><Section title="Company registration evidence">{queue.company_documents.map((x:any)=><Card key={x.id} title={x.company_name} meta={`${x.title} · ${x.siret||x.reference||'No registration reference'}`}><EvidenceActions busy={busy===`companydoc:${x.id}`} view={()=>{void viewDocument('company-documents',x.storage_path)}} hasFile={!!x.storage_path} reject={()=>verifyCompanyDoc(x.id,'rejected')} verify={()=>verifyCompanyDoc(x.id,'verified')} label="Verify document"/></Card>)}{!queue.company_documents.length&&<Empty text="No company registration documents waiting for review."/>}</Section><Section title="Company verification">{companies.filter(x=>x.verification_status==='pending').map(x=><Card key={x.id} title={x.company_name} meta={`${x.organization_type||'Organization'} · Pending`}><Actions busy={busy===`company:${x.id}`} reject={()=>update('company',x.id,'rejected')} verify={()=>update('company',x.id,'verified')} label="Verify company"/></Card>)}{!companies.some(x=>x.verification_status==='pending')&&<Empty text="No companies waiting for verification."/>}</Section><Section title="Professional verification">{professionals.filter(x=>x.verification_status==='pending').map(x=><Card key={x.id} title={`${x.professional_type==='doctor'?'Doctor':'Nurse'} · ${x.specialty||'Specialty not provided'}`} meta={`${x.years_experience||0} years experience · Pending`}><Actions busy={busy===`professional:${x.id}`} reject={()=>update('professional',x.id,'rejected')} verify={()=>update('professional',x.id,'verified')} label="Verify professional"/></Card>)}{!professionals.some(x=>x.verification_status==='pending')&&<Empty text="No professionals waiting for verification."/>}</Section><Section title="Professional files — grouped by user">{users.map(group=><View key={group.name} style={s.userGroup}><Text style={s.userName}>{group.name}</Text>{group.items.map((x:any)=><Card key={x.id} title={x._kind==='document'?x.title:x.name} meta={x._kind==='document'?`${x.document_type}${x.expires_at?` · Expires ${x.expires_at}`:''}`:`${x.issuer||'Certification'} · ${x.status||'Pending'}`}><EvidenceActions busy={busy===`${x._kind==='document'?'doc':'cert'}:${x.id}`} view={()=>{if(x._kind==='document')void viewDocument('professional-documents',x.storage_path)} hasFile={x._kind==='document'&&!!x.storage_path} reject={()=>x._kind==='document'?verifyDoc(x.id,'rejected'):verifyCert(x.id,'rejected')} verify={()=>x._kind==='document'?verifyDoc(x.id,'verified'):verifyCert(x.id,'verified')} label={x._kind==='document'?'Verify document':'Verify certification'}/></Card>)}</View>)}{!users.length&&<Empty text="No professional evidence waiting for review."/>}</Section></ScrollView></SafeAreaView>}
-function Section({title,children}:{title:string;children:React.ReactNode}){return <View style={s.section}><Text style={s.sectionTitle}>{title}</Text>{children}</View>};function Card({title,meta,children}:{title:string;meta:string;children:React.ReactNode}){return <View style={s.card}><Text style={s.name}>{title}</Text><Text style={s.meta}>{meta}</Text>{children}</View>};function Actions({busy,reject,verify,label}:{busy:boolean;reject:()=>void;verify:()=>void;label:string}){return <View style={s.actions}><Pressable disabled={busy} style={s.reject} onPress={reject}><Text style={s.rejectText}>{busy?'…':'Reject'}</Text></Pressable><Pressable disabled={busy} style={s.verify} onPress={verify}><Text style={s.verifyText}>{busy?'Working…':label}</Text></Pressable></View>};function EvidenceActions({busy,view,hasFile,reject,verify,label}:{busy:boolean;view:()=>void;hasFile:boolean;reject:()=>void;verify:()=>void;label:string}){return <View style={s.actions}><Pressable style={s.view} onPress={view} disabled={!hasFile}><Text style={s.viewText}>{hasFile?'View file':'No file'}</Text></Pressable><Pressable disabled={busy} style={s.reject} onPress={reject}><Text style={s.rejectText}>Reject</Text></Pressable><Pressable disabled={busy} style={s.verify} onPress={verify}><Text style={s.verifyText}>{busy?'Working…':label}</Text></Pressable></View>};function Empty({text}:{text:string}){return <View style={s.empty}><Text style={s.emptyText}>{text}</Text></View>};function Stat({value,label}:{value:string;label:string}){return <View style={s.stat}><Text style={s.statValue}>{value}</Text><Text style={s.statLabel}>{label}</Text></View>}
-const s=StyleSheet.create({safe:{flex:1,backgroundColor:colors.paper},container:{padding:22,paddingBottom:50},center:{flex:1,padding:24,justifyContent:'center'},eyebrow:{color:colors.green,fontWeight:'800',fontSize:11,letterSpacing:1.5},title:{fontSize:32,fontWeight:'800',color:colors.ink,letterSpacing:-1,marginTop:7},subtitle:{color:colors.muted,fontSize:13,lineHeight:19,marginTop:7},stats:{flexDirection:'row',backgroundColor:colors.white,borderWidth:1,borderColor:colors.line,borderRadius:18,paddingVertical:16,marginTop:20},stat:{flex:1,paddingHorizontal:9},statValue:{fontSize:21,fontWeight:'900',color:colors.ink},statLabel:{fontSize:9,color:colors.muted,marginTop:3},section:{marginTop:22},sectionTitle:{fontSize:18,fontWeight:'800',color:colors.ink,marginBottom:10},userGroup:{borderWidth:1,borderColor:colors.line,borderRadius:18,padding:12,marginBottom:12,backgroundColor:'#FAFBFA'},userName:{fontSize:15,fontWeight:'900',color:colors.ink,marginBottom:3},card:{backgroundColor:colors.white,borderWidth:1,borderColor:colors.line,borderRadius:14,padding:14,marginBottom:9},name:{fontSize:14,fontWeight:'800',color:colors.ink},meta:{fontSize:11,color:colors.muted,marginTop:4},actions:{flexDirection:'row',gap:7,marginTop:12},reject:{flex:1,height:40,borderWidth:1,borderColor:'#E7CACA',borderRadius:10,alignItems:'center',justifyContent:'center'},rejectText:{color:'#A83E3E',fontWeight:'800',fontSize:11},verify:{flex:2,height:40,backgroundColor:colors.ink,borderRadius:10,alignItems:'center',justifyContent:'center'},verifyText:{color:colors.white,fontWeight:'800',fontSize:11},view:{flex:1,height:40,borderWidth:1,borderColor:'#BFE8D7',borderRadius:10,alignItems:'center',justifyContent:'center',backgroundColor:colors.greenSoft},viewText:{color:colors.greenDark,fontWeight:'800',fontSize:10},error:{backgroundColor:'#FDECEC',borderRadius:12,padding:12,marginTop:16},errorText:{color:'#B83D3D',fontSize:12},retry:{color:colors.ink,fontWeight:'800',marginTop:7},empty:{borderWidth:1,borderColor:colors.line,borderRadius:12,padding:14,marginBottom:10},emptyText:{fontSize:12,color:colors.muted}});
+type Queue = {
+  documents: any[];
+  certifications: any[];
+  company_documents: any[];
+};
+
+export default function Admin() {
+  const [loading, setLoading] = useState(true);
+  const [authorized, setAuthorized] = useState(false);
+  const [companies, setCompanies] = useState<any[]>([]);
+  const [professionals, setProfessionals] = useState<any[]>([]);
+  const [queue, setQueue] = useState<Queue>({
+    documents: [],
+    certifications: [],
+    company_documents: [],
+  });
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState('');
+
+  async function load() {
+    if (!supabase) return;
+    setLoading(true);
+    setError('');
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      setError('Sign in required');
+      setLoading(false);
+      return;
+    }
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .maybeSingle();
+
+    if (profile?.role !== 'admin') {
+      setAuthorized(false);
+      setError('Admin access required');
+      setLoading(false);
+      return;
+    }
+
+    setAuthorized(true);
+
+    const [co, pr, vq, cq] = await Promise.all([
+      supabase
+        .from('companies')
+        .select('id,company_name,organization_type,verification_status,created_at')
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('professionals')
+        .select('id,professional_type,specialty,verification_status,years_experience,created_at')
+        .order('created_at', { ascending: false }),
+      supabase.rpc('admin_verification_queue_v2'),
+      supabase.rpc('admin_company_verification_queue'),
+    ]);
+
+    const e = co.error || pr.error || vq.error || cq.error;
+
+    if (e) {
+      setError(e.message);
+    } else {
+      setCompanies(co.data || []);
+      setProfessionals(pr.data || []);
+      setQueue({
+        documents: vq.data?.documents || [],
+        certifications: vq.data?.certifications || [],
+        company_documents: cq.data?.documents || [],
+      });
+    }
+
+    setLoading(false);
+  }
+
+  useEffect(() => {
+    void load();
+  }, []);
+
+  async function update(
+    type: 'company' | 'professional',
+    id: string,
+    status: 'verified' | 'rejected',
+  ) {
+    if (!supabase) return;
+    setBusy(`${type}:${id}`);
+
+    const rpc =
+      type === 'company'
+        ? 'admin_verify_company'
+        : 'admin_verify_professional';
+    const args =
+      type === 'company'
+        ? { p_company_id: id, p_status: status }
+        : { p_professional_id: id, p_status: status };
+
+    const { error: rpcError } = await supabase.rpc(rpc, args);
+    if (rpcError) Alert.alert('Action failed', rpcError.message);
+    else await load();
+
+    setBusy('');
+  }
+
+  async function verifyDoc(id: string, status: 'verified' | 'rejected') {
+    if (!supabase) return;
+    setBusy(`doc:${id}`);
+
+    const { error: rpcError } = await supabase.rpc('admin_verify_document', {
+      p_document_id: id,
+      p_status: status,
+      p_reason:
+        status === 'rejected'
+          ? 'Verification requirements not met.'
+          : null,
+    });
+
+    if (rpcError) Alert.alert('Action failed', rpcError.message);
+    else await load();
+
+    setBusy('');
+  }
+
+  async function verifyCert(id: string, status: 'verified' | 'rejected') {
+    if (!supabase) return;
+    setBusy(`cert:${id}`);
+
+    const { error: rpcError } = await supabase.rpc(
+      'admin_verify_certification',
+      { p_certification_id: id, p_status: status },
+    );
+
+    if (rpcError) Alert.alert('Action failed', rpcError.message);
+    else await load();
+
+    setBusy('');
+  }
+
+  async function verifyCompanyDoc(id: string, status: 'verified' | 'rejected') {
+    if (!supabase) return;
+    setBusy(`companydoc:${id}`);
+
+    const { error: rpcError } = await supabase.rpc(
+      'admin_verify_company_document',
+      {
+        p_document_id: id,
+        p_status: status,
+        p_reason:
+          status === 'rejected'
+            ? 'Company registration evidence was not sufficient.'
+            : null,
+      },
+    );
+
+    if (rpcError) Alert.alert('Action failed', rpcError.message);
+    else await load();
+
+    setBusy('');
+  }
+
+  async function viewDocument(bucket: string, path: string) {
+    if (!supabase || !path) return;
+
+    const { data, error: storageError } = await supabase.storage
+      .from(bucket)
+      .createSignedUrl(path, 300);
+
+    if (storageError) {
+      Alert.alert('Could not open document', storageError.message);
+      return;
+    }
+
+    if (data?.signedUrl) Linking.openURL(data.signedUrl);
+  }
+
+  const users = useMemo(() => {
+    const map = new Map<string, { name: string; items: any[] }>();
+
+    for (const x of queue.documents) {
+      const key = x.professional_id || `${x.first_name}-${x.last_name}`;
+      if (!map.has(key)) {
+        map.set(key, {
+          name:
+            `${x.first_name || ''} ${x.last_name || ''}`.trim() ||
+            'Professional',
+          items: [],
+        });
+      }
+      map.get(key)!.items.push({ ...x, _kind: 'document' });
+    }
+
+    for (const x of queue.certifications) {
+      const key = x.professional_id || `${x.first_name}-${x.last_name}`;
+      if (!map.has(key)) {
+        map.set(key, {
+          name:
+            `${x.first_name || ''} ${x.last_name || ''}`.trim() ||
+            'Professional',
+          items: [],
+        });
+      }
+      map.get(key)!.items.push({ ...x, _kind: 'certification' });
+    }
+
+    return [...map.values()].sort((a, b) => a.name.localeCompare(b.name));
+  }, [queue]);
+
+  if (loading) {
+    return (
+      <SafeAreaView style={s.safe}>
+        <ActivityIndicator size="large" color={colors.green} />
+      </SafeAreaView>
+    );
+  }
+
+  if (!authorized) {
+    return (
+      <SafeAreaView style={s.safe}>
+        <View style={s.center}>
+          <Text style={s.title}>Operations access</Text>
+          <Text style={s.errorText}>{error || 'Admin access required.'}</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView style={s.safe}>
+      <ScrollView contentContainerStyle={s.container}>
+        <Text style={s.eyebrow}>MEDICREW · ADMIN</Text>
+        <Text style={s.title}>Operations.</Text>
+        <Text style={s.subtitle}>
+          Verify accounts and uploaded evidence. Mission compensation is
+          collected through MediCrew before a mission can start and released
+          only after the completion workflow.
+        </Text>
+
+        {error ? (
+          <View style={s.error}>
+            <Text style={s.errorText}>{error}</Text>
+            <Pressable onPress={() => void load()}>
+              <Text style={s.retry}>Retry</Text>
+            </Pressable>
+          </View>
+        ) : null}
+
+        <View style={s.stats}>
+          <Stat
+            value={String(
+              companies.filter((x) => x.verification_status === 'pending').length,
+            )}
+            label="companies pending"
+          />
+          <Stat
+            value={String(
+              professionals.filter(
+                (x) => x.verification_status === 'pending',
+              ).length,
+            )}
+            label="professionals pending"
+          />
+          <Stat
+            value={String(
+              queue.documents.length +
+                queue.certifications.length +
+                queue.company_documents.length,
+            )}
+            label="evidence pending"
+          />
+        </View>
+
+        <Section title="Company registration evidence">
+          {queue.company_documents.map((x: any) => (
+            <Card
+              key={x.id}
+              title={x.company_name}
+              meta={`${x.title} · ${x.siret || x.reference || 'No registration reference'}`}
+            >
+              <EvidenceActions
+                busy={busy === `companydoc:${x.id}`}
+                view={() => void viewDocument('company-documents', x.storage_path)}
+                hasFile={!!x.storage_path}
+                reject={() => void verifyCompanyDoc(x.id, 'rejected')}
+                verify={() => void verifyCompanyDoc(x.id, 'verified')}
+                label="Verify document"
+              />
+            </Card>
+          ))}
+          {!queue.company_documents.length && (
+            <Empty text="No company registration documents waiting for review." />
+          )}
+        </Section>
+
+        <Section title="Company verification">
+          {companies
+            .filter((x) => x.verification_status === 'pending')
+            .map((x) => (
+              <Card
+                key={x.id}
+                title={x.company_name}
+                meta={`${x.organization_type || 'Organization'} · Pending`}
+              >
+                <Actions
+                  busy={busy === `company:${x.id}`}
+                  reject={() => void update('company', x.id, 'rejected')}
+                  verify={() => void update('company', x.id, 'verified')}
+                  label="Verify company"
+                />
+              </Card>
+            ))}
+          {!companies.some((x) => x.verification_status === 'pending') && (
+            <Empty text="No companies waiting for verification." />
+          )}
+        </Section>
+
+        <Section title="Professional verification">
+          {professionals
+            .filter((x) => x.verification_status === 'pending')
+            .map((x) => (
+              <Card
+                key={x.id}
+                title={`${x.professional_type === 'doctor' ? 'Doctor' : 'Nurse'} · ${x.specialty || 'Specialty not provided'}`}
+                meta={`${x.years_experience || 0} years experience · Pending`}
+              >
+                <Actions
+                  busy={busy === `professional:${x.id}`}
+                  reject={() =>
+                    void update('professional', x.id, 'rejected')
+                  }
+                  verify={() =>
+                    void update('professional', x.id, 'verified')
+                  }
+                  label="Verify professional"
+                />
+              </Card>
+            ))}
+          {!professionals.some((x) => x.verification_status === 'pending') && (
+            <Empty text="No professionals waiting for verification." />
+          )}
+        </Section>
+
+        <Section title="Professional files — grouped by user">
+          {users.map((group) => (
+            <View key={group.name} style={s.userGroup}>
+              <Text style={s.userName}>{group.name}</Text>
+              {group.items.map((x: any) => {
+                const isDocument = x._kind === 'document';
+                const itemBusy = `${isDocument ? 'doc' : 'cert'}:${x.id}`;
+                const meta = isDocument
+                  ? `${x.document_type}${
+                      x.expires_at ? ` · Expires ${x.expires_at}` : ''
+                    }`
+                  : `${x.issuer || 'Certification'} · ${x.status || 'Pending'}`;
+
+                return (
+                  <Card
+                    key={x.id}
+                    title={isDocument ? x.title : x.name}
+                    meta={meta}
+                  >
+                    <EvidenceActions
+                      busy={busy === itemBusy}
+                      view={() => {
+                        if (isDocument) {
+                          void viewDocument(
+                            'professional-documents',
+                            x.storage_path,
+                          );
+                        }
+                      }}
+                      hasFile={isDocument && !!x.storage_path}
+                      reject={() =>
+                        isDocument
+                          ? void verifyDoc(x.id, 'rejected')
+                          : void verifyCert(x.id, 'rejected')
+                      }
+                      verify={() =>
+                        isDocument
+                          ? void verifyDoc(x.id, 'verified')
+                          : void verifyCert(x.id, 'verified')
+                      }
+                      label={isDocument ? 'Verify document' : 'Verify certification'}
+                    />
+                  </Card>
+                );
+              })}
+            </View>
+          ))}
+          {!users.length && (
+            <Empty text="No professional evidence waiting for review." />
+          )}
+        </Section>
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+function Section({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <View style={s.section}>
+      <Text style={s.sectionTitle}>{title}</Text>
+      {children}
+    </View>
+  );
+}
+
+function Card({
+  title,
+  meta,
+  children,
+}: {
+  title: string;
+  meta: string;
+  children: ReactNode;
+}) {
+  return (
+    <View style={s.card}>
+      <Text style={s.name}>{title}</Text>
+      <Text style={s.meta}>{meta}</Text>
+      {children}
+    </View>
+  );
+}
+
+function Actions({
+  busy,
+  reject,
+  verify,
+  label,
+}: {
+  busy: boolean;
+  reject: () => void;
+  verify: () => void;
+  label: string;
+}) {
+  return (
+    <View style={s.actions}>
+      <Pressable disabled={busy} style={s.reject} onPress={reject}>
+        <Text style={s.rejectText}>{busy ? '…' : 'Reject'}</Text>
+      </Pressable>
+      <Pressable disabled={busy} style={s.verify} onPress={verify}>
+        <Text style={s.verifyText}>{busy ? 'Working…' : label}</Text>
+      </Pressable>
+    </View>
+  );
+}
+
+function EvidenceActions({
+  busy,
+  view,
+  hasFile,
+  reject,
+  verify,
+  label,
+}: {
+  busy: boolean;
+  view: () => void;
+  hasFile: boolean;
+  reject: () => void;
+  verify: () => void;
+  label: string;
+}) {
+  return (
+    <View style={s.actions}>
+      <Pressable style={s.view} onPress={view} disabled={!hasFile}>
+        <Text style={s.viewText}>{hasFile ? 'View file' : 'No file'}</Text>
+      </Pressable>
+      <Pressable disabled={busy} style={s.reject} onPress={reject}>
+        <Text style={s.rejectText}>Reject</Text>
+      </Pressable>
+      <Pressable disabled={busy} style={s.verify} onPress={verify}>
+        <Text style={s.verifyText}>{busy ? 'Working…' : label}</Text>
+      </Pressable>
+    </View>
+  );
+}
+
+function Empty({ text }: { text: string }) {
+  return (
+    <View style={s.empty}>
+      <Text style={s.emptyText}>{text}</Text>
+    </View>
+  );
+}
+
+function Stat({ value, label }: { value: string; label: string }) {
+  return (
+    <View style={s.stat}>
+      <Text style={s.statValue}>{value}</Text>
+      <Text style={s.statLabel}>{label}</Text>
+    </View>
+  );
+}
+
+const s = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: colors.paper },
+  container: { padding: 22, paddingBottom: 50 },
+  center: { flex: 1, padding: 24, justifyContent: 'center' },
+  eyebrow: {
+    color: colors.green,
+    fontWeight: '800',
+    fontSize: 11,
+    letterSpacing: 1.5,
+  },
+  title: {
+    fontSize: 32,
+    fontWeight: '800',
+    color: colors.ink,
+    letterSpacing: -1,
+    marginTop: 7,
+  },
+  subtitle: {
+    color: colors.muted,
+    fontSize: 13,
+    lineHeight: 19,
+    marginTop: 7,
+  },
+  stats: {
+    flexDirection: 'row',
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: 18,
+    paddingVertical: 16,
+    marginTop: 20,
+  },
+  stat: { flex: 1, paddingHorizontal: 9 },
+  statValue: { fontSize: 21, fontWeight: '900', color: colors.ink },
+  statLabel: { fontSize: 9, color: colors.muted, marginTop: 3 },
+  section: { marginTop: 22 },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: colors.ink,
+    marginBottom: 10,
+  },
+  userGroup: {
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: 18,
+    padding: 12,
+    marginBottom: 12,
+    backgroundColor: '#FAFBFA',
+  },
+  userName: {
+    fontSize: 15,
+    fontWeight: '900',
+    color: colors.ink,
+    marginBottom: 3,
+  },
+  card: {
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 9,
+  },
+  name: { fontSize: 14, fontWeight: '800', color: colors.ink },
+  meta: { fontSize: 11, color: colors.muted, marginTop: 4 },
+  actions: { flexDirection: 'row', gap: 7, marginTop: 12 },
+  reject: {
+    flex: 1,
+    height: 40,
+    borderWidth: 1,
+    borderColor: '#E7CACA',
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rejectText: { color: '#A83E3E', fontWeight: '800', fontSize: 11 },
+  verify: {
+    flex: 2,
+    height: 40,
+    backgroundColor: colors.ink,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  verifyText: { color: colors.white, fontWeight: '800', fontSize: 11 },
+  view: {
+    flex: 1,
+    height: 40,
+    borderWidth: 1,
+    borderColor: '#BFE8D7',
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.greenSoft,
+  },
+  viewText: { color: colors.greenDark, fontWeight: '800', fontSize: 10 },
+  error: {
+    backgroundColor: '#FDECEC',
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 16,
+  },
+  errorText: { color: '#B83D3D', fontSize: 12 },
+  retry: { color: colors.ink, fontWeight: '800', marginTop: 7 },
+  empty: {
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 10,
+  },
+  emptyText: { fontSize: 12, color: colors.muted },
+});
