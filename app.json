@@ -7,19 +7,84 @@
     "scheme": "medicrew",
     "userInterfaceStyle": "light",
     "icon": "./assets/icon.png",
-    "splash": {"image":"./assets/splash-icon.png","resizeMode":"contain","backgroundColor":"#F7F8F6"},
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#F7F8F6"
+    },
     "plugins": [
       "expo-router",
       "expo-secure-store",
       "expo-document-picker",
-      ["expo-image-picker", {"photosPermission":"MediCrew uses your photos to set your profile picture.","cameraPermission":false,"microphonePermission":false}],
-      ["expo-notifications", {"icon":"./assets/notification-icon.png","color":"#18B889","defaultChannel":"missions","enableBackgroundRemoteNotifications":true}],
-      ["expo-splash-screen", {"backgroundColor":"#F7F8F6","image":"./assets/splash-icon.png","imageWidth":180}],
-      ["@stripe/stripe-react-native", {"enableGooglePay":false}],
-      ["expo-build-properties", {"ios":{"deploymentTarget":"15.1","privacyManifestAggregationEnabled":true},"android":{"minSdkVersion":24,"targetSdkVersion":36,"compileSdkVersion":36}]
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "MediCrew uses your photos to set your profile picture.",
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#18B889",
+          "defaultChannel": "missions",
+          "enableBackgroundRemoteNotifications": true
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#F7F8F6",
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 180
+        }
+      ],
+      [
+        "@stripe/stripe-react-native",
+        {
+          "enableGooglePay": false
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "deploymentTarget": "15.1",
+            "privacyManifestAggregationEnabled": true
+          },
+          "android": {
+            "minSdkVersion": 24,
+            "targetSdkVersion": 36,
+            "compileSdkVersion": 36
+          }
+        }
+      ]
     ],
-    "ios": {"supportsTablet":true,"bundleIdentifier":"com.medicrew.app","buildNumber":"1","requireFullScreen":false,"infoPlist":{"CFBundleAllowMixedLocalizations":true,"CFBundleLocalizations":["en","fr","es","de","it","pt"],"UIBackgroundModes":["remote-notification"],"ITSAppUsesNonExemptEncryption":false}},
-    "android": {"package":"com.medicrew.app","versionCode":1,"adaptiveIcon":{"foregroundImage":"./assets/icon.png","backgroundColor":"#101214"},"permissions":["POST_NOTIFICATIONS"]},
-    "experiments": {"typedRoutes":true}
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.medicrew.app",
+      "buildNumber": "1",
+      "requireFullScreen": false,
+      "infoPlist": {
+        "CFBundleAllowMixedLocalizations": true,
+        "CFBundleLocalizations": ["en", "fr", "es", "de", "it", "pt"],
+        "UIBackgroundModes": ["remote-notification"],
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "package": "com.medicrew.app",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#101214"
+      },
+      "permissions": ["POST_NOTIFICATIONS"]
+    },
+    "experiments": {
+      "typedRoutes": true
+    }
   }
 }
