@@ -1,11 +1,13 @@
 create or replace function public.my_direct_conversations()
 returns table(conversation_id uuid,other_profile_id uuid,display_name text,avatar_url text,role public.account_role,last_message text,last_message_at timestamptz)
 language sql stable security definer set search_path=public as $$
- select c.id,other.profile_id,
-   case when p.role='company' then co.company_name else trim(coalesce(p.first_name,'')||' '||coalesce(p.last_name,'')) end,
-   p.avatar_url,p.role,
-   (select dm.body from public.direct_messages dm where dm.conversation_id=c.id order by dm.created_at desc limit 1),
-   (select dm.created_at from public.direct_messages dm where dm.conversation_id=c.id order by dm.created_at desc limit 1)
+ select c.id as conversation_id,
+   other.profile_id as other_profile_id,
+   case when p.role='company' then co.company_name else trim(coalesce(p.first_name,'')||' '||coalesce(p.last_name,'')) end as display_name,
+   p.avatar_url as avatar_url,
+   p.role as role,
+   (select dm.body from public.direct_messages dm where dm.conversation_id=c.id order by dm.created_at desc limit 1) as last_message,
+   (select dm.created_at from public.direct_messages dm where dm.conversation_id=c.id order by dm.created_at desc limit 1) as last_message_at
  from public.direct_conversations c
  join public.direct_conversation_members mine on mine.conversation_id=c.id and mine.profile_id=auth.uid()
  join public.direct_conversation_members other on other.conversation_id=c.id and other.profile_id<>auth.uid()
