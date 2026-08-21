@@ -22,6 +22,6 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
       - name: Expo doctor
-        run: npm run doctor -- --non-interactive
+        run: npm run doctor
       - name: Lint
         run: npm run lint
