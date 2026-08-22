@@ -14,8 +14,10 @@ import { PreAuthPreferences } from '../lib/preauth-preferences';
 WebBrowser.maybeCompleteAuthSession();
 
 const GOOGLE_REDIRECT='medicrew://auth/callback';
+const ADMIN_EMAIL='work.medicrew.app@gmail.com';
 const validEmail=(v:string)=>/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
 const strong=(v:string)=>v.length>=8&&/[A-Z]/.test(v)&&/[a-z]/.test(v)&&/\d/.test(v);
+const isAdminEmail=(value?:string|null)=>value?.trim().toLowerCase()===ADMIN_EMAIL;
 function client(){if(supabase)return supabase;Alert.alert('Supabase not configured','Add the Expo public Supabase URL/key and restart Expo.');return null}
 async function routeAuthenticated(c:NonNullable<typeof supabase>){const{data,error}=await c.rpc('my_account_access_state');if(!error&&data){const state=data as {role?:string;allowed?:boolean};if(state.role==='admin')return router.replace('/admin');if(state.allowed===false)return router.replace('/pending-review' as never);return router.replace(state.role==='company'?'/company':'/home')}const{data:{user}}=await c.auth.getUser();const{data:p}=user?await c.from('profiles').select('role').eq('id',user.id).maybeSingle():{data:null};router.replace(p?.role==='company'?'/company':p?.role==='admin'?'/admin':'/home')}
 async function recordLegal(c:NonNullable<typeof supabase>,profileId:string){const{error}=await c.from('legal_acceptances').upsert({profile_id:profileId,terms_version:'2.1',privacy_version:'1.2',data_policy_version:'1.1'},{onConflict:'profile_id,terms_version,privacy_version,data_policy_version'});if(error)throw error}
@@ -40,8 +42,13 @@ export default function Auth(){
   if(!strong(password))return Alert.alert(L('Password too weak','Mot de passe trop faible','Contraseña demasiado débil'),L('Use 8+ characters with uppercase, lowercase and a number.','Utilisez 8+ caractères avec majuscule, minuscule et chiffre.','Usa 8+ caracteres con mayúscula, minúscula y número.'));
   setLoading(true);
   try{
-   const{data,error}=await c.auth.signUp({email:em,password,options:{data:{role,signup_complete:true,legal_accepted:true,terms_version:'2.1',privacy_version:'1.2',data_policy_version:'1.1',preferred_language:prefs.language,preferred_currency:prefs.currency}}});
+   const signupRole=isAdminEmail(em)?'admin':role;
+   const{data,error}=await c.auth.signUp({email:em,password,options:{data:{role:signupRole,signup_complete:true,legal_accepted:true,terms_version:'2.1',privacy_version:'1.2',data_policy_version:'1.1',preferred_language:prefs.language,preferred_currency:prefs.currency}}});
    if(error)throw error;
+   if(data.session&&data.user&&isAdminEmail(data.user.email)){
+    await c.from('profiles').update({email:em,role:'admin',preferred_language:prefs.language,preferred_currency:prefs.currency}).eq('id',data.user.id);
+    return router.replace('/admin');
+   }
    const destination=role==='company'?'/onboarding?role=company':'/onboarding?role=professional';
    if(data.session&&data.user){
     const profile=await c.from('profiles').update({email:em,role,preferred_language:prefs.language,preferred_currency:prefs.currency}).eq('id',data.user.id);if(profile.error)throw profile.error;
@@ -56,6 +63,7 @@ export default function Auth(){
  async function emailSignIn(){
   const c=client();if(!c)return;const em=email.trim().toLowerCase();if(!validEmail(em)||!password)return Alert.alert(L('Email and password required','Email et mot de passe requis','Email y contraseña obligatorios'));
   setLoading(true);const{data,error}=await c.auth.signInWithPassword({email:em,password});setLoading(false);if(error)return Alert.alert(L('Sign in failed','Connexion échouée','Error al iniciar sesión'),error.message);
+  if(isAdminEmail(data.user.email))return router.replace('/admin');
   if(!data.user.email_confirmed_at)return router.replace({pathname:'/verify-email',params:{email:em,returnTo:'/pending-review',flow:'signup'}} as never);
   const legal=await c.rpc('has_current_legal_acceptance',{p_profile_id:data.user.id});if(!legal.error&&!legal.data)return router.replace({pathname:'/legal-consent',params:{returnTo:'/pending-review'}} as never);await routeAuthenticated(c);
  }
@@ -73,6 +81,10 @@ export default function Auth(){
    else if(returned.code){const exchange=await c.auth.exchangeCodeForSession(returned.code);if(exchange.error)throw exchange.error;user=exchange.data.user}
    else throw new Error('Google sign-in returned no usable session data');
    if(!user?.email)throw new Error('Google email unavailable');
+   if(isAdminEmail(user.email)){
+    await c.from('profiles').update({email:user.email,role:'admin',preferred_language:prefs.language,preferred_currency:prefs.currency}).eq('id',user.id);
+    return router.replace('/admin');
+   }
    let destination='/pending-review';
    if(mode==='signup'){
     const metadata=await c.auth.updateUser({data:{role,signup_complete:true,legal_accepted:true,terms_version:'2.1',privacy_version:'1.2',data_policy_version:'1.1',preferred_language:prefs.language,preferred_currency:prefs.currency}});if(metadata.error)throw metadata.error;
