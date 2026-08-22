@@ -21,7 +21,7 @@ const strong=(v:string)=>v.length>=8&&/[A-Z]/.test(v)&&/[a-z]/.test(v)&&/\d/.tes
 const isAdminEmail=(value?:string|null)=>value?.trim().toLowerCase()===ADMIN_EMAIL;
 function client(){if(supabase)return supabase;Alert.alert('Supabase not configured','Add the Expo public Supabase URL/key and restart Expo.');return null}
 async function routeAuthenticated(c:NonNullable<typeof supabase>){const{data,error}=await c.rpc('my_account_access_state');if(!error&&data){const state=data as {role?:string;allowed?:boolean};if(state.role==='admin')return router.replace('/admin');if(state.allowed===false)return router.replace('/pending-review' as never);return router.replace(state.role==='company'?'/company':'/home')}const{data:{user}}=await c.auth.getUser();const{data:p}=user?await c.from('profiles').select('role').eq('id',user.id).maybeSingle():{data:null};router.replace(p?.role==='company'?'/company':p?.role==='admin'?'/admin':'/home')}
-async function recordLegal(c:NonNullable<typeof supabase>,profileId:string){const{error}=await c.from('legal_acceptances').upsert({profile_id:profileId,terms_version:'2.1',privacy_version:'1.2',data_policy_version:'1.1'},{onConflict:'profile_id,terms_version,privacy_version,data_policy_version'});if(error)throw error}
+async function recordLegal(c:NonNullable<typeof supabase>,profileId:string){const current=await c.from('legal_acceptances').select('profile_id').eq('profile_id',profileId).eq('terms_version','2.1').eq('privacy_version','1.2').eq('data_policy_version','1.1').maybeSingle();if(current.error)throw current.error;if(current.data)return;const{error}=await c.from('legal_acceptances').insert({profile_id:profileId,terms_version:'2.1',privacy_version:'1.2',data_policy_version:'1.1'});if(error)throw error}
 function oauthReturn(url:string){const parsed=new URL(url);const hash=new URLSearchParams(parsed.hash.startsWith('#')?parsed.hash.slice(1):parsed.hash);return{code:parsed.searchParams.get('code')||hash.get('code'),accessToken:parsed.searchParams.get('access_token')||hash.get('access_token'),refreshToken:parsed.searchParams.get('refresh_token')||hash.get('refresh_token'),error:parsed.searchParams.get('error_description')||hash.get('error_description')||parsed.searchParams.get('error')||hash.get('error')}}
 async function sendEmailCode(c:NonNullable<typeof supabase>,email:string){const{error}=await c.auth.signInWithOtp({email,options:{shouldCreateUser:false}});if(error)throw error}
 async function routeTestAccount(c:NonNullable<typeof supabase>,role:'professional'|'company'){
@@ -100,8 +100,7 @@ export default function Auth(){
     const profile=await c.from('profiles').update({email:user.email,role,preferred_language:prefs.language,preferred_currency:prefs.currency}).eq('id',user.id);if(profile.error)throw profile.error;
     await recordLegal(c,user.id);destination=role==='company'?'/onboarding?role=company':'/onboarding?role=professional';
    }else{const{data:state}=await c.rpc('my_account_access_state');const account=state as {role?:string;allowed?:boolean}|null;destination=account?.role==='admin'?'/admin':account?.allowed===false?'/pending-review':account?.role==='company'?'/company':'/home'}
-   await sendEmailCode(c,user.email);
-   router.replace({pathname:'/verify-email',params:{email:user.email,returnTo:destination,flow:'google'}} as never);
+   router.replace(destination as never);
   }catch(e:any){Alert.alert(L('Google authentication failed','Authentification Google échouée','Falló la autenticación con Google'),e?.message||L('Please try again.','Réessayez.','Inténtalo de nuevo.'))}finally{setGoogleBusy(false)}
  }
 
