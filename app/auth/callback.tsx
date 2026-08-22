@@ -1,0 +1,11 @@
+import { useEffect,useState } from 'react';
+import { ActivityIndicator,StyleSheet,Text,View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { router,useLocalSearchParams } from 'expo-router';
+import { supabase } from '../../lib/supabase';
+import { colors } from '../../lib/theme';
+import { usePreferences } from '../../lib/preferences-context';
+import { localize } from '../../lib/i18n';
+
+export default function AuthCallback(){const prefs=usePreferences();const L=(en:string,fr:string,es:string)=>localize(prefs.language,en,fr,es);const params=useLocalSearchParams<{code?:string;error?:string;error_description?:string}>();const[message,setMessage]=useState(L('Confirming your account…','Confirmation de votre compte…','Confirmando tu cuenta…'));useEffect(()=>{let active=true;(async()=>{const c=supabase;if(!c){setMessage('Supabase not configured');return}if(params.error){setMessage(params.error_description||params.error);return}if(params.code){const{error}=await c.auth.exchangeCodeForSession(params.code);if(error){setMessage(error.message);return}}const{data:{user}}=await c.auth.getUser();if(!active)return;if(!user){setMessage(L('The confirmation link is invalid or expired.','Le lien de confirmation est invalide ou expiré.','El enlace de confirmación no es válido o ha caducado.'));return}const role=user.user_metadata?.role==='company'?'company':'professional';await c.from('profiles').update({email:user.email||null,role}).eq('id',user.id);if(active)router.replace(role==='company'?'/onboarding?role=company':'/onboarding?role=professional')})();return()=>{active=false}},[params.code,params.error,params.error_description]);return <SafeAreaView style={s.safe}><View style={s.center}><ActivityIndicator size="large" color={colors.green}/><Text style={s.text}>{message}</Text></View></SafeAreaView>}
+const s=StyleSheet.create({safe:{flex:1,backgroundColor:colors.paper},center:{flex:1,alignItems:'center',justifyContent:'center',padding:28},text:{marginTop:18,fontSize:14,lineHeight:21,textAlign:'center',color:colors.muted}});
