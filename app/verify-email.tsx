@@ -10,14 +10,71 @@ import { localize } from '../lib/i18n';
 type VerificationFlow='signup'|'google';
 
 export default function VerifyEmail(){
- const prefs=usePreferences();const L=(en:string,fr:string,es:string)=>localize(prefs.language,en,fr,es);
+ const prefs=usePreferences();
+ const L=(en:string,fr:string,es:string)=>localize(prefs.language,en,fr,es);
  const{returnTo,email:emailParam,flow:flowParam}=useLocalSearchParams<{returnTo?:string;email?:string;flow?:VerificationFlow}>();
- const[email,setEmail]=useState(typeof emailParam==='string'?emailParam:'');const[code,setCode]=useState('');const[loading,setLoading]=useState(true);const[sending,setSending]=useState(false);const[checking,setChecking]=useState(false);const[cooldown,setCooldown]=useState(60);const input=useRef<TextInput>(null);
- const destination=(typeof returnTo==='string'&&returnTo?returnTo:'/home') as Href;const flow:VerificationFlow=flowParam==='google'?'google':'signup';
+ const[email,setEmail]=useState(typeof emailParam==='string'?emailParam:'');
+ const[code,setCode]=useState('');
+ const[loading,setLoading]=useState(true);
+ const[sending,setSending]=useState(false);
+ const[checking,setChecking]=useState(false);
+ const[cooldown,setCooldown]=useState(60);
+ const input=useRef<TextInput>(null);
+ const destination=(typeof returnTo==='string'&&returnTo?returnTo:'/home') as Href;
+ const flow:VerificationFlow=flowParam==='google'?'google':'signup';
+
  useEffect(()=>{let active=true;(async()=>{if(!supabase){setLoading(false);return}const{data:{user}}=await supabase.auth.getUser();if(!active)return;if(user?.email&&!email)setEmail(user.email);if(flow==='signup'&&user?.email_confirmed_at)router.replace(destination);setLoading(false);setTimeout(()=>input.current?.focus(),200)})();return()=>{active=false}},[destination,email,flow]);
  useEffect(()=>{if(cooldown<=0)return;const timer=setTimeout(()=>setCooldown(v=>Math.max(0,v-1)),1000);return()=>clearTimeout(timer)},[cooldown]);
- async function resend(){if(!supabase||!email||sending||cooldown>0)return;setSending(true);let error=null;if(flow==='signup'){({error}=await supabase.auth.resend({type:'signup',email}));}else{({error}=await supabase.auth.signInWithOtp({email,options:{shouldCreateUser:false}}));}setSending(false);if(error)return Alert.alert(L('Could not send code','Impossible d’envoyer le code','No se pudo enviar el código'),error.message);setCode('');setCooldown(60);setTimeout(()=>input.current?.focus(),150);Alert.alert(L('New code sent','Nouveau code envoyé','Nuevo código enviado'),L('Check your inbox and spam folder. Only the newest code will work.','Vérifiez votre boîte de réception et les spams. Seul le code le plus récent fonctionnera.','Revisa tu bandeja de entrada y spam. Solo funcionará el código más reciente.'))}
- async function verify(){if(!supabase||checking)return;if(!/^\d{6}$/.test(code))return Alert.alert(L('Enter the 6-digit code','Entrez le code à 6 chiffres','Introduce el código de 6 dígitos'));setChecking(true);let result=await supabase.auth.verifyOtp({email,token:code,type:flow==='signup'?'signup':'email'} as any);if(result.error&&flow==='signup')result=await supabase.auth.verifyOtp({email,token:code,type:'email'});setChecking(false);if(result.error)return Alert.alert(L('Invalid or expired code','Code invalide ou expiré','Código inválido o caducado'),L('Use the newest code from your inbox. If needed, wait for the timer to reach 0 and request a new one.','Utilisez le code le plus récent reçu. Si nécessaire, attendez que le compteur arrive à 0 puis demandez-en un nouveau.','Usa el código más reciente. Si es necesario, espera a que el contador llegue a 0 y solicita uno nuevo.'));router.replace(destination)}
+
+ function updateCode(raw:string){
+   if(raw && !/^\d{0,6}$/.test(raw)){
+     setCode('');
+     Alert.alert(
+       L('Enter the 6-digit code','Entrez le code à 6 chiffres','Introduce el código de 6 dígitos'),
+       L('Paste only the 6 digits shown in the MediCrew email, not a link.','Collez uniquement les 6 chiffres affichés dans l’email MediCrew, pas un lien.','Pega solo los 6 dígitos del email de MediCrew, no un enlace.')
+     );
+     return;
+   }
+   setCode(raw.slice(0,6));
+ }
+
+ async function resend(){
+   if(!supabase||!email||sending||cooldown>0)return;
+   setSending(true);
+   const {error}=flow==='signup'
+     ? await supabase.auth.resend({type:'signup',email})
+     : await supabase.auth.signInWithOtp({email,options:{shouldCreateUser:false}});
+   setSending(false);
+   if(error)return Alert.alert(L('Could not send code','Impossible d’envoyer le code','No se pudo enviar el código'),error.message);
+   setCode('');setCooldown(60);setTimeout(()=>input.current?.focus(),150);
+   Alert.alert(L('New code sent','Nouveau code envoyé','Nuevo código enviado'),L('Check your inbox and spam folder. Only the newest 6-digit code will work.','Vérifiez votre boîte de réception et les spams. Seul le dernier code à 6 chiffres fonctionnera.','Revisa tu bandeja de entrada y spam. Solo funcionará el código de 6 dígitos más reciente.'));
+ }
+
+ async function verify(){
+   if(!supabase||checking)return;
+   if(!/^\d{6}$/.test(code))return Alert.alert(L('Enter the 6-digit code','Entrez le code à 6 chiffres','Introduce el código de 6 dígitos'));
+   setChecking(true);
+   const {error}=await supabase.auth.verifyOtp({email,token:code,type:'email'});
+   setChecking(false);
+   if(error)return Alert.alert(
+     L('Invalid code','Code invalide','Código inválido'),
+     L('Use the newest 6-digit code from the MediCrew email. Do not paste the email link.','Utilisez le dernier code à 6 chiffres reçu par email MediCrew. Ne collez pas le lien de l’email.','Usa el código de 6 dígitos más reciente del email de MediCrew. No pegues el enlace del email.')
+   );
+   router.replace(destination);
+ }
+
  if(loading)return <SafeAreaView style={s.safe}><ActivityIndicator color={colors.green} style={{marginTop:60}}/></SafeAreaView>;
- return <SafeAreaView style={s.safe}><KeyboardAvoidingView style={s.flex} behavior={Platform.OS==='ios'?'padding':undefined}><View style={s.container}><View style={s.icon}><Text style={s.iconText}>✉</Text></View><Text style={s.eyebrow}>{L('EMAIL VERIFICATION','VÉRIFICATION EMAIL','VERIFICACIÓN DE EMAIL')}</Text><Text style={s.title}>{L('Enter your code.','Entrez votre code.','Introduce tu código.')}</Text><Text style={s.sub}>{L('We sent a 6-digit MediCrew verification code to','Nous avons envoyé un code MediCrew à 6 chiffres à','Hemos enviado un código MediCrew de 6 dígitos a')} <Text style={s.bold}>{email}</Text>.</Text><Pressable onPress={()=>input.current?.focus()} style={s.codeWrap}><TextInput ref={input} value={code} onChangeText={v=>setCode(v.replace(/\D/g,'').slice(0,6))} keyboardType="number-pad" textContentType="oneTimeCode" autoComplete="one-time-code" maxLength={6} style={s.codeInput}/></Pressable><Text style={s.hint}>{L('The code is temporary and can only be used once.','Le code est temporaire et ne peut être utilisé qu’une fois.','El código es temporal y solo puede utilizarse una vez.')}</Text><Pressable disabled={checking||code.length!==6} onPress={verify} style={[s.primary,(checking||code.length!==6)&&s.disabled]}><Text style={s.primaryText}>{checking?L('Verifying…','Vérification…','Verificando…'):L('Verify email','Vérifier l’email','Verificar email')}</Text><Text style={s.arrow}>→</Text></Pressable><View style={s.card}><Text style={s.cardTitle}>{L('Didn’t receive it?','Vous ne l’avez pas reçu ?','¿No lo has recibido?')}</Text><Text style={s.cardText}>{cooldown>0?L(`You can request a new code in ${cooldown}s.`,`Vous pourrez demander un nouveau code dans ${cooldown}s.`,`Podrás solicitar un nuevo código en ${cooldown}s.`):L('You can request a new verification code now.','Vous pouvez maintenant demander un nouveau code.','Ya puedes solicitar un nuevo código.')}</Text><Pressable disabled={sending||!email||cooldown>0} onPress={resend} style={[s.secondary,(sending||!email||cooldown>0)&&s.secondaryDisabled]}><Text style={s.secondaryText}>{sending?L('Sending…','Envoi…','Enviando…'):cooldown>0?L(`Resend in ${cooldown}s`,`Renvoyer dans ${cooldown}s`,`Reenviar en ${cooldown}s`):L('Send a new code','Envoyer un nouveau code','Enviar un código nuevo')}</Text></Pressable></View><Pressable onPress={()=>supabase?.auth.signOut().then(()=>router.replace('/'))} style={s.link}><Text style={s.linkText}>{L('Use another account','Utiliser un autre compte','Usar otra cuenta')}</Text></Pressable></View></KeyboardAvoidingView></SafeAreaView>}
+ return <SafeAreaView style={s.safe}><KeyboardAvoidingView style={s.flex} behavior={Platform.OS==='ios'?'padding':undefined}><View style={s.container}>
+   <View style={s.icon}><Text style={s.iconText}>✉</Text></View>
+   <Text style={s.eyebrow}>{L('EMAIL VERIFICATION','VÉRIFICATION EMAIL','VERIFICACIÓN DE EMAIL')}</Text>
+   <Text style={s.title}>{L('Enter your code.','Entrez votre code.','Introduce tu código.')}</Text>
+   <Text style={s.sub}>{L('We sent a 6-digit MediCrew verification code to','Nous avons envoyé un code MediCrew à 6 chiffres à','Hemos enviado un código MediCrew de 6 dígitos a')} <Text style={s.bold}>{email}</Text>.</Text>
+   <Pressable onPress={()=>input.current?.focus()} style={s.codeWrap}><TextInput ref={input} value={code} onChangeText={updateCode} keyboardType="number-pad" textContentType="oneTimeCode" autoComplete="one-time-code" maxLength={6} style={s.codeInput}/></Pressable>
+   <Text style={s.hint}>{L('Enter only the 6 digits from the email.','Entrez uniquement les 6 chiffres de l’email.','Introduce solo los 6 dígitos del email.')}</Text>
+   <Pressable disabled={checking||code.length!==6} onPress={verify} style={[s.primary,(checking||code.length!==6)&&s.disabled]}><Text style={s.primaryText}>{checking?L('Verifying…','Vérification…','Verificando…'):L('Verify email','Vérifier l’email','Verificar email')}</Text><Text style={s.arrow}>→</Text></Pressable>
+   <View style={s.card}><Text style={s.cardTitle}>{L('Didn’t receive it?','Vous ne l’avez pas reçu ?','¿No lo has recibido?')}</Text><Text style={s.cardText}>{cooldown>0?L(`You can request a new code in ${cooldown}s.`,`Vous pourrez demander un nouveau code dans ${cooldown}s.`,`Podrás solicitar un nuevo código en ${cooldown}s.`):L('You can request a new verification code now.','Vous pouvez maintenant demander un nouveau code.','Ya puedes solicitar un nuevo código.')}</Text><Pressable disabled={sending||!email||cooldown>0} onPress={resend} style={[s.secondary,(sending||!email||cooldown>0)&&s.secondaryDisabled]}><Text style={s.secondaryText}>{sending?L('Sending…','Envoi…','Enviando…'):cooldown>0?L(`Resend in ${cooldown}s`,`Renvoyer dans ${cooldown}s`,`Reenviar en ${cooldown}s`):L('Send a new code','Envoyer un nouveau code','Enviar un código nuevo')}</Text></Pressable></View>
+   <Pressable onPress={()=>supabase?.auth.signOut().then(()=>router.replace('/'))} style={s.link}><Text style={s.linkText}>{L('Use another account','Utiliser un autre compte','Usar otra cuenta')}</Text></Pressable>
+ </View></KeyboardAvoidingView></SafeAreaView>
+}
+
 const s=StyleSheet.create({safe:{flex:1,backgroundColor:colors.paper},flex:{flex:1},container:{flex:1,padding:24,justifyContent:'center'},icon:{width:70,height:70,borderRadius:35,backgroundColor:colors.greenSoft,alignItems:'center',justifyContent:'center',alignSelf:'center',marginBottom:20},iconText:{fontSize:30,color:colors.greenDark},eyebrow:{fontSize:11,fontWeight:'900',letterSpacing:1.5,color:colors.green,textAlign:'center'},title:{fontSize:34,lineHeight:39,fontWeight:'900',color:colors.ink,textAlign:'center',marginTop:8},sub:{fontSize:14,lineHeight:21,color:colors.muted,textAlign:'center',marginTop:10},bold:{fontWeight:'800',color:colors.ink},codeWrap:{alignSelf:'center',marginTop:28,borderWidth:1.5,borderColor:colors.green,borderRadius:radii.lg,backgroundColor:colors.white,paddingHorizontal:22,paddingVertical:10},codeInput:{minWidth:210,textAlign:'center',fontSize:34,fontWeight:'900',letterSpacing:13,color:colors.ink,paddingLeft:13},hint:{fontSize:11,lineHeight:17,color:colors.muted,textAlign:'center',marginTop:10},card:{backgroundColor:colors.white,borderWidth:1,borderColor:colors.line,borderRadius:radii.lg,padding:18,marginTop:18},cardTitle:{fontSize:16,fontWeight:'800',color:colors.ink},cardText:{fontSize:12,lineHeight:18,color:colors.muted,marginTop:4},secondary:{marginTop:13,height:44,borderWidth:1,borderColor:colors.line,borderRadius:radii.md,alignItems:'center',justifyContent:'center'},secondaryDisabled:{opacity:.45},secondaryText:{fontSize:12,fontWeight:'800',color:colors.greenDark},primary:{height:55,borderRadius:radii.md,backgroundColor:colors.ink,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:12,marginTop:18},disabled:{opacity:.4},primaryText:{color:colors.white,fontSize:15,fontWeight:'900'},arrow:{color:colors.green,fontSize:21},link:{alignItems:'center',padding:16},linkText:{color:colors.muted,fontWeight:'700',fontSize:12}});
