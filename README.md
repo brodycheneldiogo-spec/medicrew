@@ -10,7 +10,7 @@ MediCrew connects verified doctors and nurses with approved medical transport co
 
 - React Native + Expo
 - Supabase Auth / PostgreSQL / Realtime / Edge Functions
-- Stripe Connect for marketplace payments
+- Stripe-hosted invoices for MediCrew service fees
 - GitHub
 
 ## Data scope
@@ -19,4 +19,4 @@ MediCrew does not store patient medical records. The platform stores professiona
 
 ## Status
 
-Initial application architecture in development.
+Production candidate. See PRODUCTION_READINESS.md and docs/QA.md before release.
