@@ -19,6 +19,8 @@ const strong=(v:string)=>v.length>=8&&/[A-Z]/.test(v)&&/[a-z]/.test(v)&&/\d/.tes
 function client(){if(supabase)return supabase;Alert.alert('Supabase not configured','Add the Expo public Supabase URL/key and restart Expo.');return null}
 async function routeAuthenticated(c:NonNullable<typeof supabase>){const{data,error}=await c.rpc('my_account_access_state');if(!error&&data){const state=data as {role?:string;allowed?:boolean};if(state.role==='admin')return router.replace('/admin');if(state.allowed===false)return router.replace('/pending-review' as never);return router.replace(state.role==='company'?'/company':'/home')}const{data:{user}}=await c.auth.getUser();const{data:p}=user?await c.from('profiles').select('role').eq('id',user.id).maybeSingle():{data:null};router.replace(p?.role==='company'?'/company':p?.role==='admin'?'/admin':'/home')}
 async function recordLegal(c:NonNullable<typeof supabase>,profileId:string){const{error}=await c.from('legal_acceptances').upsert({profile_id:profileId,terms_version:'2.1',privacy_version:'1.2',data_policy_version:'1.1'},{onConflict:'profile_id,terms_version,privacy_version,data_policy_version'});if(error)throw error}
+function oauthReturn(url:string){const parsed=new URL(url);const hash=new URLSearchParams(parsed.hash.startsWith('#')?parsed.hash.slice(1):parsed.hash);return{code:parsed.searchParams.get('code')||hash.get('code'),accessToken:parsed.searchParams.get('access_token')||hash.get('access_token'),refreshToken:parsed.searchParams.get('refresh_token')||hash.get('refresh_token'),error:parsed.searchParams.get('error_description')||hash.get('error_description')||parsed.searchParams.get('error')||hash.get('error')}}
+async function sendEmailCode(c:NonNullable<typeof supabase>,email:string){const{error}=await c.auth.signInWithOtp({email,options:{shouldCreateUser:false}});if(error)throw error}
 
 export default function Auth(){
  const prefs=usePreferences();
@@ -36,11 +38,19 @@ export default function Auth(){
   const c=client();if(!c)return;const em=email.trim().toLowerCase();
   if(!validEmail(em))return Alert.alert(L('Email required','Email requis','Email obligatorio'));
   if(!strong(password))return Alert.alert(L('Password too weak','Mot de passe trop faible','Contraseña demasiado débil'),L('Use 8+ characters with uppercase, lowercase and a number.','Utilisez 8+ caractères avec majuscule, minuscule et chiffre.','Usa 8+ caracteres con mayúscula, minúscula y número.'));
-  setLoading(true);const{data,error}=await c.auth.signUp({email:em,password,options:{data:{role,signup_complete:true,legal_accepted:true,terms_version:'2.1',privacy_version:'1.2',data_policy_version:'1.1',preferred_language:prefs.language,preferred_currency:prefs.currency}}});setLoading(false);
-  if(error)return Alert.alert(L('Could not create account','Impossible de créer le compte','No se pudo crear la cuenta'),error.message);
-  const destination=role==='company'?'/onboarding?role=company':'/onboarding?role=professional';
-  if(data.session&&data.user){try{await c.from('profiles').update({email:em,role,preferred_language:prefs.language,preferred_currency:prefs.currency}).eq('id',data.user.id);await recordLegal(c,data.user.id)}catch(e:any){return Alert.alert('MediCrew',e?.message||'Account setup failed')}return router.replace(destination)}
-  router.replace({pathname:'/verify-email',params:{email:em,returnTo:destination,flow:'signup'}} as never);
+  setLoading(true);
+  try{
+   const{data,error}=await c.auth.signUp({email:em,password,options:{data:{role,signup_complete:true,legal_accepted:true,terms_version:'2.1',privacy_version:'1.2',data_policy_version:'1.1',preferred_language:prefs.language,preferred_currency:prefs.currency}}});
+   if(error)throw error;
+   const destination=role==='company'?'/onboarding?role=company':'/onboarding?role=professional';
+   if(data.session&&data.user){
+    const profile=await c.from('profiles').update({email:em,role,preferred_language:prefs.language,preferred_currency:prefs.currency}).eq('id',data.user.id);if(profile.error)throw profile.error;
+    await recordLegal(c,data.user.id);
+    await sendEmailCode(c,em);
+    return router.replace({pathname:'/verify-email',params:{email:em,returnTo:destination,flow:'google'}} as never);
+   }
+   router.replace({pathname:'/verify-email',params:{email:em,returnTo:destination,flow:'signup'}} as never);
+  }catch(e:any){Alert.alert(L('Could not create account','Impossible de créer le compte','No se pudo crear la cuenta'),e?.message||'MediCrew')}finally{setLoading(false)}
  }
 
  async function emailSignIn(){
@@ -57,17 +67,19 @@ export default function Auth(){
    if(error||!data?.url)throw error||new Error('Could not start Google authentication');
    const result=await WebBrowser.openAuthSessionAsync(data.url,GOOGLE_REDIRECT);
    if(result.type!=='success')return;
-   const url=new URL(result.url);const authCode=url.searchParams.get('code');
-   if(!authCode)throw new Error('Google did not return an authorization code');
-   const exchange=await c.auth.exchangeCodeForSession(authCode);if(exchange.error)throw exchange.error;
-   const user=exchange.data.user;if(!user||!user.email)throw new Error('Google email unavailable');
+   const returned=oauthReturn(result.url);if(returned.error)throw new Error(returned.error);
+   let user:null|{id:string;email?:string|null}=null;
+   if(returned.accessToken&&returned.refreshToken){const session=await c.auth.setSession({access_token:returned.accessToken,refresh_token:returned.refreshToken});if(session.error)throw session.error;user=session.data.user}
+   else if(returned.code){const exchange=await c.auth.exchangeCodeForSession(returned.code);if(exchange.error)throw exchange.error;user=exchange.data.user}
+   else throw new Error('Google sign-in returned no usable session data');
+   if(!user?.email)throw new Error('Google email unavailable');
    let destination='/pending-review';
    if(mode==='signup'){
     const metadata=await c.auth.updateUser({data:{role,signup_complete:true,legal_accepted:true,terms_version:'2.1',privacy_version:'1.2',data_policy_version:'1.1',preferred_language:prefs.language,preferred_currency:prefs.currency}});if(metadata.error)throw metadata.error;
     const profile=await c.from('profiles').update({email:user.email,role,preferred_language:prefs.language,preferred_currency:prefs.currency}).eq('id',user.id);if(profile.error)throw profile.error;
     await recordLegal(c,user.id);destination=role==='company'?'/onboarding?role=company':'/onboarding?role=professional';
    }else{const{data:state}=await c.rpc('my_account_access_state');const account=state as {role?:string;allowed?:boolean}|null;destination=account?.role==='admin'?'/admin':account?.allowed===false?'/pending-review':account?.role==='company'?'/company':'/home'}
-   const otp=await c.auth.signInWithOtp({email:user.email,options:{shouldCreateUser:false}});if(otp.error)throw otp.error;
+   await sendEmailCode(c,user.email);
    router.replace({pathname:'/verify-email',params:{email:user.email,returnTo:destination,flow:'google'}} as never);
   }catch(e:any){Alert.alert(L('Google authentication failed','Authentification Google échouée','Falló la autenticación con Google'),e?.message||L('Please try again.','Réessayez.','Inténtalo de nuevo.'))}finally{setGoogleBusy(false)}
  }
