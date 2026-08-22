@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { supabase } from './supabase';
-import { Currency, Language, deviceLanguage, formatMoney, t, TranslationKey } from './i18n';
+import { Currency, Language, formatMoney, t, TranslationKey } from './i18n';
 
 type FxRates = Record<string, number>;
 type PreferencesContextValue = {
@@ -17,8 +17,8 @@ type PreferencesContextValue = {
 const PreferencesContext = createContext<PreferencesContextValue | null>(null);
 
 export function PreferencesProvider({ children }: { children: React.ReactNode }) {
-  const [language, setLanguage] = useState<Language>(deviceLanguage());
-  const [currency, setCurrency] = useState<Currency>('EUR');
+  const [language, setLanguage] = useState<Language>('en');
+  const [currency, setCurrency] = useState<Currency>('USD');
   const [rates, setRates] = useState<FxRates>({ EUR: 1 });
   const [ready, setReady] = useState(false);
 
