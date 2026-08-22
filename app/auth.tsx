@@ -4,7 +4,6 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router,useLocalSearchParams } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
-import * as Linking from 'expo-linking';
 import { FontAwesome } from '@expo/vector-icons';
 import { colors,radii } from '../lib/theme';
 import { MediCrewLogo } from '../lib/brand';
@@ -14,6 +13,7 @@ import { localize } from '../lib/i18n';
 import { PreAuthPreferences } from '../lib/preauth-preferences';
 WebBrowser.maybeCompleteAuthSession();
 
+const GOOGLE_REDIRECT='medicrew://auth/callback';
 const validEmail=(v:string)=>/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
 const strong=(v:string)=>v.length>=8&&/[A-Z]/.test(v)&&/[a-z]/.test(v)&&/\d/.test(v);
 function client(){if(supabase)return supabase;Alert.alert('Supabase not configured','Add the Expo public Supabase URL/key and restart Expo.');return null}
@@ -33,73 +33,47 @@ export default function Auth(){
  const role=requestedRole||'professional';
 
  async function finishSignup(){
-   const c=client();if(!c)return;
-   const em=email.trim().toLowerCase();
-   if(!validEmail(em))return Alert.alert(L('Email required','Email requis','Email obligatorio'));
-   if(!strong(password))return Alert.alert(L('Password too weak','Mot de passe trop faible','Contraseña demasiado débil'),L('Use 8+ characters with uppercase, lowercase and a number.','Utilisez 8+ caractères avec majuscule, minuscule et chiffre.','Usa 8+ caracteres con mayúscula, minúscula y número.'));
-   setLoading(true);
-   const{data,error}=await c.auth.signUp({email:em,password,options:{data:{role,signup_complete:true,legal_accepted:true,terms_version:'2.1',privacy_version:'1.2',data_policy_version:'1.1',preferred_language:prefs.language,preferred_currency:prefs.currency}}});
-   setLoading(false);
-   if(error)return Alert.alert(L('Could not create account','Impossible de créer le compte','No se pudo crear la cuenta'),error.message);
-   const destination=role==='company'?'/onboarding?role=company':'/onboarding?role=professional';
-   if(data.session&&data.user){
-     try{await c.from('profiles').update({email:em,role,preferred_language:prefs.language,preferred_currency:prefs.currency}).eq('id',data.user.id);await recordLegal(c,data.user.id)}catch(e:any){return Alert.alert('MediCrew',e?.message||'Account setup failed')}
-     return router.replace(destination);
-   }
-   router.replace({pathname:'/verify-email',params:{email:em,returnTo:destination,flow:'signup'}} as never);
+  const c=client();if(!c)return;const em=email.trim().toLowerCase();
+  if(!validEmail(em))return Alert.alert(L('Email required','Email requis','Email obligatorio'));
+  if(!strong(password))return Alert.alert(L('Password too weak','Mot de passe trop faible','Contraseña demasiado débil'),L('Use 8+ characters with uppercase, lowercase and a number.','Utilisez 8+ caractères avec majuscule, minuscule et chiffre.','Usa 8+ caracteres con mayúscula, minúscula y número.'));
+  setLoading(true);const{data,error}=await c.auth.signUp({email:em,password,options:{data:{role,signup_complete:true,legal_accepted:true,terms_version:'2.1',privacy_version:'1.2',data_policy_version:'1.1',preferred_language:prefs.language,preferred_currency:prefs.currency}}});setLoading(false);
+  if(error)return Alert.alert(L('Could not create account','Impossible de créer le compte','No se pudo crear la cuenta'),error.message);
+  const destination=role==='company'?'/onboarding?role=company':'/onboarding?role=professional';
+  if(data.session&&data.user){try{await c.from('profiles').update({email:em,role,preferred_language:prefs.language,preferred_currency:prefs.currency}).eq('id',data.user.id);await recordLegal(c,data.user.id)}catch(e:any){return Alert.alert('MediCrew',e?.message||'Account setup failed')}return router.replace(destination)}
+  router.replace({pathname:'/verify-email',params:{email:em,returnTo:destination,flow:'signup'}} as never);
  }
 
  async function emailSignIn(){
-   const c=client();if(!c)return;
-   const em=email.trim().toLowerCase();
-   if(!validEmail(em)||!password)return Alert.alert(L('Email and password required','Email et mot de passe requis','Email y contraseña obligatorios'));
-   setLoading(true);const{data,error}=await c.auth.signInWithPassword({email:em,password});setLoading(false);
-   if(error)return Alert.alert(L('Sign in failed','Connexion échouée','Error al iniciar sesión'),error.message);
-   if(!data.user.email_confirmed_at)return router.replace({pathname:'/verify-email',params:{email:em,returnTo:'/pending-review',flow:'signup'}} as never);
-   const legal=await c.rpc('has_current_legal_acceptance',{p_profile_id:data.user.id});
-   if(!legal.error&&!legal.data)return router.replace({pathname:'/legal-consent',params:{returnTo:'/pending-review'}} as never);
-   await routeAuthenticated(c);
+  const c=client();if(!c)return;const em=email.trim().toLowerCase();if(!validEmail(em)||!password)return Alert.alert(L('Email and password required','Email et mot de passe requis','Email y contraseña obligatorios'));
+  setLoading(true);const{data,error}=await c.auth.signInWithPassword({email:em,password});setLoading(false);if(error)return Alert.alert(L('Sign in failed','Connexion échouée','Error al iniciar sesión'),error.message);
+  if(!data.user.email_confirmed_at)return router.replace({pathname:'/verify-email',params:{email:em,returnTo:'/pending-review',flow:'signup'}} as never);
+  const legal=await c.rpc('has_current_legal_acceptance',{p_profile_id:data.user.id});if(!legal.error&&!legal.data)return router.replace({pathname:'/legal-consent',params:{returnTo:'/pending-review'}} as never);await routeAuthenticated(c);
  }
 
  async function google(){
-   const c=client();if(!c)return;
-   setGoogleBusy(true);
-   try{
-     const redirectTo=Linking.createURL('auth/callback');
-     const{data,error}=await c.auth.signInWithOAuth({provider:'google',options:{redirectTo,skipBrowserRedirect:true,queryParams:{prompt:'select_account'}}});
-     if(error||!data?.url)throw error||new Error('Could not start Google authentication');
-     const result=await WebBrowser.openAuthSessionAsync(data.url,redirectTo);
-     if(result.type!=='success')return;
-     const parsed=Linking.parse(result.url),authCode=typeof parsed.queryParams?.code==='string'?parsed.queryParams.code:null;
-     if(!authCode)throw new Error('Google did not return an authorization code');
-     const exchange=await c.auth.exchangeCodeForSession(authCode);
-     if(exchange.error)throw exchange.error;
-     const user=exchange.data.user;
-     if(!user||!user.email)throw new Error('Google email unavailable');
-     let destination='/pending-review';
-     if(mode==='signup'){
-       const metadata=await c.auth.updateUser({data:{role,signup_complete:true,legal_accepted:true,terms_version:'2.1',privacy_version:'1.2',data_policy_version:'1.1',preferred_language:prefs.language,preferred_currency:prefs.currency}});
-       if(metadata.error)throw metadata.error;
-       const profile=await c.from('profiles').update({email:user.email,role,preferred_language:prefs.language,preferred_currency:prefs.currency}).eq('id',user.id);
-       if(profile.error)throw profile.error;
-       await recordLegal(c,user.id);
-       destination=role==='company'?'/onboarding?role=company':'/onboarding?role=professional';
-     }else{
-       const{data:state}=await c.rpc('my_account_access_state');
-       const account=state as {role?:string;allowed?:boolean}|null;
-       destination=account?.role==='admin'?'/admin':account?.allowed===false?'/pending-review':account?.role==='company'?'/company':'/home';
-     }
-     const otp=await c.auth.signInWithOtp({email:user.email,options:{shouldCreateUser:false}});
-     if(otp.error)throw otp.error;
-     router.replace({pathname:'/verify-email',params:{email:user.email,returnTo:destination,flow:'google'}} as never);
-   }catch(e:any){
-     Alert.alert(L('Google authentication failed','Authentification Google échouée','Falló la autenticación con Google'),e?.message||L('Please try again.','Réessayez.','Inténtalo de nuevo.'));
-   }finally{setGoogleBusy(false)}
+  const c=client();if(!c)return;setGoogleBusy(true);
+  try{
+   const{data,error}=await c.auth.signInWithOAuth({provider:'google',options:{redirectTo:GOOGLE_REDIRECT,skipBrowserRedirect:true,queryParams:{prompt:'select_account'}}});
+   if(error||!data?.url)throw error||new Error('Could not start Google authentication');
+   const result=await WebBrowser.openAuthSessionAsync(data.url,GOOGLE_REDIRECT);
+   if(result.type!=='success')return;
+   const url=new URL(result.url);const authCode=url.searchParams.get('code');
+   if(!authCode)throw new Error('Google did not return an authorization code');
+   const exchange=await c.auth.exchangeCodeForSession(authCode);if(exchange.error)throw exchange.error;
+   const user=exchange.data.user;if(!user||!user.email)throw new Error('Google email unavailable');
+   let destination='/pending-review';
+   if(mode==='signup'){
+    const metadata=await c.auth.updateUser({data:{role,signup_complete:true,legal_accepted:true,terms_version:'2.1',privacy_version:'1.2',data_policy_version:'1.1',preferred_language:prefs.language,preferred_currency:prefs.currency}});if(metadata.error)throw metadata.error;
+    const profile=await c.from('profiles').update({email:user.email,role,preferred_language:prefs.language,preferred_currency:prefs.currency}).eq('id',user.id);if(profile.error)throw profile.error;
+    await recordLegal(c,user.id);destination=role==='company'?'/onboarding?role=company':'/onboarding?role=professional';
+   }else{const{data:state}=await c.rpc('my_account_access_state');const account=state as {role?:string;allowed?:boolean}|null;destination=account?.role==='admin'?'/admin':account?.allowed===false?'/pending-review':account?.role==='company'?'/company':'/home'}
+   const otp=await c.auth.signInWithOtp({email:user.email,options:{shouldCreateUser:false}});if(otp.error)throw otp.error;
+   router.replace({pathname:'/verify-email',params:{email:user.email,returnTo:destination,flow:'google'}} as never);
+  }catch(e:any){Alert.alert(L('Google authentication failed','Authentification Google échouée','Falló la autenticación con Google'),e?.message||L('Please try again.','Réessayez.','Inténtalo de nuevo.'))}finally{setGoogleBusy(false)}
  }
 
  const googleLabel=googleBusy?L('Opening Google…','Ouverture de Google…','Abriendo Google…'):L(mode==='signup'?'Create account with Google':'Continue with Google',mode==='signup'?'Créer le compte avec Google':'Continuer avec Google',mode==='signup'?'Crear cuenta con Google':'Continuar con Google');
  const legalCopy=<Pressable style={s.legalNotice} onPress={()=>router.push('/legal')}><Text style={s.legalText}>{L('By creating an account, you agree to MediCrew’s Terms, Privacy Policy and Data Policy.','En créant un compte, vous acceptez les Conditions, la Politique de confidentialité et la Politique des données de MediCrew.','Al crear una cuenta, aceptas los Términos, la Política de privacidad y la Política de datos de MediCrew.')}</Text><Text style={s.legalLink}>{L('Trust & Privacy →','Confiance & confidentialité →','Confianza y privacidad →')}</Text></Pressable>;
-
  return <SafeAreaView style={s.safe}><KeyboardAvoidingView style={{flex:1}} behavior={Platform.OS==='ios'?'padding':undefined}><ScrollView contentContainerStyle={s.container} keyboardShouldPersistTaps="handled"><View style={s.top}><Pressable onPress={()=>router.back()}><Text style={s.back}>‹ {prefs.tr('back')}</Text></Pressable><PreAuthPreferences/></View><MediCrewLogo/><Text style={s.progress}>{mode==='signup'?L('CREATE ACCOUNT','CRÉER UN COMPTE','CREAR CUENTA'):L('SECURE SIGN IN','CONNEXION SÉCURISÉE','INICIO SEGURO')}</Text><Text style={s.title}>{mode==='signup'?L('Join MediCrew.','Rejoignez MediCrew.','Únete a MediCrew.'):L('Sign in to MediCrew.','Connectez-vous à MediCrew.','Inicia sesión en MediCrew.')}</Text><Text style={s.sub}>{mode==='signup'?L('Create your account with email or Google. An 8-digit code will verify your email before your profile can continue.','Créez votre compte avec votre email ou Google. Un code à 8 chiffres vérifiera votre email avant de continuer.','Crea tu cuenta con email o Google. Un código de 8 dígitos verificará tu email antes de continuar.'):L('Use your email and password or continue with Google. Google sign-in is followed by a MediCrew email code.','Utilisez votre email et mot de passe ou continuez avec Google. Google est suivi d’un code email MediCrew.','Usa tu email y contraseña o continúa con Google. Google va seguido de un código de email MediCrew.')}</Text><View style={s.form}><Field label={L('Email address','Adresse email','Correo electrónico')} value={email} set={setEmail}/><Text style={s.label}>{L('Password','Mot de passe','Contraseña')}</Text><Password value={password} set={setPassword} show={show} setShow={setShow} labels={[L('Show','Afficher','Mostrar'),L('Hide','Masquer','Ocultar')]}/>{mode==='signup'?<><Text style={s.rules}>{strong(password)?L('✓ Strong password','✓ Mot de passe fort','✓ Contraseña segura'):L('8+ characters, uppercase, lowercase and a number.','8+ caractères, majuscule, minuscule et chiffre.','8+ caracteres, mayúscula, minúscula y número.')}</Text><Pressable disabled={loading} onPress={finishSignup}><LinearGradient colors={[colors.greenStart,colors.green,colors.greenEnd]} style={s.button}><Text style={s.buttonText}>{loading?L('Creating account…','Création du compte…','Creando cuenta…'):L('Create account with email','Créer avec email','Crear con email')}</Text></LinearGradient></Pressable><GoogleButton busy={googleBusy} onPress={google} label={googleLabel}/>{legalCopy}<Pressable style={s.switch} onPress={()=>setMode('signin')}><Text style={s.switchText}>{L('Already have an account? Sign in','Déjà un compte ? Se connecter','¿Ya tienes cuenta? Inicia sesión')}</Text></Pressable></>:<><Pressable disabled={loading} onPress={emailSignIn}><LinearGradient colors={[colors.greenStart,colors.green,colors.greenEnd]} style={s.button}><Text style={s.buttonText}>{loading?L('Signing in…','Connexion…','Iniciando sesión…'):L('Sign in','Se connecter','Iniciar sesión')}</Text></LinearGradient></Pressable><GoogleButton busy={googleBusy} onPress={google} label={googleLabel}/><Pressable style={s.switch} onPress={()=>router.push('/forgot-password')}><Text style={s.switchText}>{L('Forgot your password?','Mot de passe oublié ?','¿Olvidaste tu contraseña?')}</Text></Pressable><Pressable style={s.switch} onPress={()=>setMode('signup')}><Text style={s.switchText}>{L('Create an account','Créer un compte','Crear una cuenta')}</Text></Pressable></>}</View></ScrollView></KeyboardAvoidingView></SafeAreaView>}
 function Field({label,value,set}:{label:string;value:string;set:(v:string)=>void}){return <View style={s.field}><Text style={s.label}>{label}</Text><TextInput value={value} onChangeText={set} keyboardType="email-address" autoCapitalize="none" autoComplete="email" style={s.input}/></View>}
 function Password({value,set,show,setShow,labels}:{value:string;set:(v:string)=>void;show:boolean;setShow:(v:boolean)=>void;labels:[string,string]}){return <View style={s.password}><TextInput value={value} onChangeText={set} secureTextEntry={!show} autoCapitalize="none" autoComplete="password" style={s.passwordInput}/><Pressable onPress={()=>setShow(!show)}><Text style={s.eye}>{show?labels[1]:labels[0]}</Text></Pressable></View>}
