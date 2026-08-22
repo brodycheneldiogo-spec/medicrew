@@ -44,7 +44,9 @@ export default function AuthCallback() {
         .maybeSingle();
       if (update.error) return setMessage(update.error.message);
       if (!active) return;
-      if (email === ADMIN_EMAIL || update.data?.role === 'admin') return router.replace('/admin');
+      const { data: access } = await client.rpc('my_account_access_state');
+      const state = access as { role?: string } | null;
+      if (email === ADMIN_EMAIL || update.data?.role === 'admin' || state?.role === 'admin') return router.replace('/admin');
       router.replace(requestedRole === 'company' ? '/onboarding?role=company' : '/onboarding?role=professional');
     };
     void finish();
