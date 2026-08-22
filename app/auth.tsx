@@ -70,10 +70,10 @@ export default function Auth(){
  async function emailSignIn(){
   const c=client();if(!c)return;const em=email.trim().toLowerCase();if(!validEmail(em)||!password)return Alert.alert(L('Email and password required','Email et mot de passe requis','Email y contraseña obligatorios'));
   setLoading(true);const{data,error}=await c.auth.signInWithPassword({email:em,password});setLoading(false);if(error)return Alert.alert(L('Sign in failed','Connexion échouée','Error al iniciar sesión'),error.message);
-  if(isAdminEmail(data.user.email))return router.replace('/admin');
+  if(isAdminEmail(data.user.email))return await routeAuthenticated(c);
   if(em===TEST_EMAIL){try{return await routeTestAccount(c,role)}catch(e:any){return Alert.alert('MediCrew',e?.message||'Unable to open test account')}}
   if(!data.user.email_confirmed_at)return router.replace({pathname:'/verify-email',params:{email:em,returnTo:'/pending-review',flow:'signup'}} as never);
-  const legal=await c.rpc('has_current_legal_acceptance',{p_profile_id:data.user.id});if(!legal.error&&!legal.data)return router.replace({pathname:'/legal-consent',params:{returnTo:'/pending-review'}} as never);await routeAuthenticated(c);
+  await routeAuthenticated(c);
  }
 
  async function google(){
