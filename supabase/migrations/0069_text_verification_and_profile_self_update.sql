@@ -1,31 +1,45 @@
--- Allow authenticated users to maintain their own public profile fields while identity triggers still protect role/email/phone.
+-- Restore Data API privileges that are required before RLS policies can be evaluated.
+-- RLS below still limits every user to their own rows.
+grant select, update on public.profiles to authenticated;
+grant select, insert, update on public.professionals to authenticated;
+grant select, insert, update on public.companies to authenticated;
+grant select, insert, update on public.professional_documents to authenticated;
+grant select, insert, update on public.company_verification_documents to authenticated;
+
+-- Allow authenticated users to maintain only their own public profile.
 drop policy if exists profiles_owner_update on public.profiles;
 create policy profiles_owner_update on public.profiles
 for update to authenticated
-using (id = auth.uid())
-with check (id = auth.uid());
+using ((select auth.uid()) = id)
+with check ((select auth.uid()) = id);
 
 -- Bio is public profile content for both professionals and organizations.
 alter table public.profiles add column if not exists bio text;
 
--- Company experience can be shown as an optional organization fact later without changing verification semantics.
+-- Company experience can be shown later without changing verification semantics.
 alter table public.companies add column if not exists years_experience integer check (years_experience is null or years_experience >= 0);
 
 -- Text-only verification evidence is stored in the existing evidence tables.
--- Files are intentionally optional: MediCrew can verify official references against issuing authorities/registries.
+-- Files are intentionally optional: MediCrew verifies official references against issuing authorities/registries.
 alter table public.professional_documents alter column storage_path drop not null;
 alter table public.company_verification_documents alter column storage_path drop not null;
 
--- Owners may add text evidence for review. Status must begin as pending.
+-- Owners may add/update text evidence for review. A user cannot self-verify evidence.
 drop policy if exists professional_documents_owner_insert on public.professional_documents;
 create policy professional_documents_owner_insert on public.professional_documents
 for insert to authenticated
-with check (professional_id = auth.uid() and status = 'pending');
+with check (professional_id = (select auth.uid()) and status = 'pending');
 
 drop policy if exists company_verification_documents_owner_insert on public.company_verification_documents;
 create policy company_verification_documents_owner_insert on public.company_verification_documents
 for insert to authenticated
-with check (company_id = auth.uid() and status = 'pending');
+with check (company_id = (select auth.uid()) and status = 'pending');
+
+drop policy if exists company_verification_documents_owner_update on public.company_verification_documents;
+create policy company_verification_documents_owner_update on public.company_verification_documents
+for update to authenticated
+using (company_id = (select auth.uid()) and status = 'pending')
+with check (company_id = (select auth.uid()) and status = 'pending');
 
 -- Submission remains strict, but evidence can now be reference-based rather than uploaded files.
 create or replace function public.submit_my_account_for_review()
@@ -56,10 +70,15 @@ begin
   else
     raise exception 'Professional or organization account required';
   end if;
+
   insert into public.notifications(profile_id,title,body,type,data)
-  values(v_uid,'Profile submitted for review','Your MediCrew profile has been created. Our team is reviewing your official reference information. We will email you at '||coalesce(v_email,'your verified email')||' when the review is complete. Review can take up to 24 hours.','verification_submitted',jsonb_build_object('email',true,'url','/pending-review','review_eta_hours',24));
+  values(v_uid,'Profile submitted for review',
+    'Your MediCrew profile has been created. Our team is reviewing your official reference information. We will email you at '||coalesce(v_email,'your verified email')||' when the review is complete. Review can take up to 24 hours.',
+    'verification_submitted',jsonb_build_object('email',true,'url','/pending-review','review_eta_hours',24));
+
   insert into public.audit_logs(actor_id,action,entity_type,entity_id,metadata)
   values(v_uid,'account_submitted_for_review',v_role::text,v_uid,jsonb_build_object('email',v_email,'review_eta_hours',24,'evidence_mode','reference_only'));
+
   return jsonb_build_object('status','pending','role',v_role,'email',v_email,'review_eta_hours',24);
 end;
 $$;
