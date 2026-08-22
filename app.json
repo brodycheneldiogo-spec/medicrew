@@ -33,12 +33,6 @@
         }
       ],
       [
-        "@stripe/stripe-react-native",
-        {
-          "enableGooglePay": false
-        }
-      ],
-      [
         "expo-build-properties",
         {
           "ios": {
