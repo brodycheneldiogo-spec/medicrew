@@ -32,7 +32,7 @@ export default function CompanyVerification(){
    const upload=await supabase.storage.from('company-documents').upload(storagePath,body,{contentType:mime,cacheControl:'3600',upsert:false});
    if(upload.error)throw upload.error;
    const row=await supabase.from('company_verification_documents').insert({company_id:user.id,document_type:'company_registration',title:file.name,reference:file.name,storage_path:storagePath,original_name:file.name,mime_type:mime,size_bytes:file.size??body.byteLength,uploaded_at:new Date().toISOString(),status:'pending'});
-   if(row.error)throw row.error;
+   if(row.error)throw row.error;const review=await supabase.rpc('submit_my_account_for_review');if(review.error)throw review.error;
    Alert.alert(L('Document added','Document ajouté','Documento añadido'),L('Your document was sent to MediCrew. We will email and notify you when the review is complete.','Votre document a été envoyé à MediCrew. Vous recevrez un email et une notification lorsque l’analyse sera terminée.','Tu documento se envió a MediCrew. Recibirás un correo y una notificación cuando termine la revisión.'),[{text:'OK',onPress:()=>router.replace('/pending-review' as never)}]);
   }catch(e:any){if(storagePath)await supabase.storage.from('company-documents').remove([storagePath]);setError(e?.message||L('Unable to add the document.','Impossible d’ajouter le document.','No se pudo añadir el documento.'))}finally{setSaving(false)}
  }

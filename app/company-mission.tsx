@@ -1,12 +1,897 @@
-import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
-import { colors, radii } from '../lib/theme';
-import { supabase } from '../lib/supabase';
-import { usePreferences } from '../lib/preferences-context';
-import { Currency, formatMoney, localize, supportedCurrencies } from '../lib/i18n';
-type Kind='transport'|'event';const parseDateTime=(date:string,time:string)=>{const d=new Date(`${date}T${time}:00`);return Number.isNaN(d.getTime())?null:d};
-export default function CompanyMission(){const prefs=usePreferences();const L=(en:string,fr:string,es:string)=>localize(prefs.language,en,fr,es);const[kind,setKind]=useState<Kind>('transport'),[loading,setLoading]=useState(true),[preview,setPreview]=useState(false),[saving,setSaving]=useState(false),[done,setDone]=useState('');const[role,setRole]=useState<'doctor'|'nurse'>('nurse'),[specialty,setSpecialty]=useState(''),[minYears,setMinYears]=useState('0'),[staffCount,setStaffCount]=useState('1'),[languages,setLanguages]=useState('English'),[fee,setFee]=useState(''),[currency,setCurrency]=useState<Currency>(prefs.currency),[duration,setDuration]=useState(''),[notes,setNotes]=useState(''),[accepted,setAccepted]=useState(false);const[fromCode,setFromCode]=useState(''),[toCode,setToCode]=useState(''),[fromName,setFromName]=useState(''),[toName,setToName]=useState(''),[date,setDate]=useState(''),[time,setTime]=useState(''),[returnInfo,setReturnInfo]=useState('');const[eventName,setEventName]=useState(''),[eventType,setEventType]=useState(''),[venue,setVenue]=useState(''),[eventCity,setEventCity]=useState(''),[eventCountry,setEventCountry]=useState(''),[endDate,setEndDate]=useState(''),[endTime,setEndTime]=useState(''),[attendance,setAttendance]=useState(''),[onSite,setOnSite]=useState('');useEffect(()=>{void load()},[]);async function load(){if(!supabase){setLoading(false);return}const{data:{user}}=await supabase.auth.getUser();if(!user){if(__DEV__)setPreview(true);setLoading(false);return}const{data}=await supabase.from('companies').select('company_type').eq('id',user.id).maybeSingle();setKind(data?.company_type==='event'?'event':'transport');setLoading(false)}const amount=Number(fee.replace(',','.'));const platform=useMemo(()=>Number.isFinite(amount)?Math.round(amount*11)/100:0,[amount]);async function publish(){if(preview)return Alert.alert(L('Development preview','Aperçu de développement','Vista previa de desarrollo'));if(!supabase)return;if(!accepted)return Alert.alert(L('Billing terms required','Conditions de facturation requises','Se requieren condiciones de facturación'));if(!date||!time)return Alert.alert(L('Schedule required','Planning requis','Horario obligatorio'));const start=parseDateTime(date,time);if(!start||start<=new Date())return Alert.alert(L('Invalid schedule','Planning invalide','Horario no válido'));if(!Number.isFinite(amount)||amount<=0)return Alert.alert(L('Professional fee required','Rémunération requise','Honorarios obligatorios'));if(!duration||Number(duration)<=0)return Alert.alert(L('Duration required','Durée requise','Duración obligatoria'));if(!specialty.trim())return Alert.alert(L('Clinical specialty required','Spécialité clinique requise','Especialidad clínica obligatoria'));if(kind==='transport'&&(!/^[A-Za-z]{3}$/.test(fromCode.trim())||!/^[A-Za-z]{3}$/.test(toCode.trim())||!fromName.trim()||!toName.trim()))return Alert.alert(L('Airports required','Aéroports requis','Aeropuertos obligatorios'));if(kind==='event'&&(!eventName.trim()||!venue.trim()||!eventCity.trim()||!eventCountry.trim()||!endDate||!endTime))return Alert.alert(L('Event details required','Informations événement requises','Datos del evento obligatorios'));const end=kind==='event'?parseDateTime(endDate,endTime):null;if(kind==='event'&&(!end||end<=start))return Alert.alert(L('Invalid event window','Créneau événement invalide','Periodo del evento no válido'));setSaving(true);try{const{data:{user}}=await supabase.auth.getUser();if(!user)throw new Error(L('Sign in required','Connexion requise','Inicio de sesión obligatorio'));const company=await supabase.from('companies').select('verification_status,company_type').eq('id',user.id).maybeSingle();if(company.error||!company.data)throw company.error||new Error('Organization profile missing');if(company.data.verification_status!=='verified')throw new Error(L('MediCrew must verify your organization before publishing.','MediCrew doit vérifier votre organisation avant toute publication.','MediCrew debe verificar tu organización antes de publicar.'));const languageList=languages.split(',').map(x=>x.trim()).filter(Boolean);const title=kind==='transport'?`${role==='doctor'?'Doctor':'Nurse'} · ${fromCode.trim().toUpperCase()} → ${toCode.trim().toUpperCase()}`:`${eventName.trim()} · ${role==='doctor'?'Doctor':'Nurse'}`;const payload:any={company_id:user.id,title,mission_kind:kind,departure_location:kind==='transport'?fromName.trim():eventCity.trim(),destination_location:kind==='transport'?toName.trim():eventCity.trim(),departure_at:start.toISOString(),estimated_duration_hours:Number(duration),transport_type:'air',professional_type:role,compensation_cents:Math.round(amount*100),compensation_currency:currency,expenses_covered:true,return_arrangements:kind==='transport'?returnInfo.trim()||null:null,status:'draft',service_fee_bps:1100,required_specialty:specialty.trim(),minimum_experience_years:Number(minYears)||0,required_languages:languageList,staff_count:Number(staffCount)||1,operational_notes:notes.trim()||null};if(kind==='transport'){payload.departure_airport_code=fromCode.trim().toUpperCase();payload.arrival_airport_code=toCode.trim().toUpperCase()}else{payload.event_name=eventName.trim();payload.event_type=eventType.trim()||null;payload.event_venue=venue.trim();payload.event_city=eventCity.trim();payload.event_country=eventCountry.trim();payload.event_end_at=end!.toISOString();payload.expected_attendance=attendance?Number(attendance):null;payload.on_site_contact=onSite.trim()||null}const created=await supabase.from('missions').insert(payload).select('id').single();if(created.error)throw created.error;const billing=await supabase.rpc('company_accepts_mission_billing',{p_mission_id:created.data.id,p_terms_version:'1.0'});if(billing.error){await supabase.from('missions').delete().eq('id',created.data.id);throw billing.error}const published=await supabase.rpc('publish_network_assignment',{p_mission_id:created.data.id});if(published.error){await supabase.from('missions').delete().eq('id',created.data.id);throw published.error}setDone(created.data.id)}catch(e:any){Alert.alert(L('Could not publish assignment','Impossible de publier la mission','No se pudo publicar la misión'),e?.message||'Unknown error')}finally{setSaving(false)}}if(loading)return <SafeAreaView style={s.safe}><ActivityIndicator style={{marginTop:90}} color={colors.company} size="large"/></SafeAreaView>;return <SafeAreaView style={s.safe}><ScrollView contentContainerStyle={s.container} keyboardShouldPersistTaps="handled"><Pressable onPress={()=>router.back()}><Text style={s.back}>‹ {prefs.tr('back')}</Text></Pressable><Text style={s.eyebrow}>{kind==='transport'?L('AIR MEDICAL TRANSPORT','TRANSPORT MÉDICAL AÉRIEN','TRANSPORTE MÉDICO AÉREO'):L('EVENT MEDICAL STAFFING','MÉDICAL ÉVÉNEMENTIEL','PERSONAL MÉDICO PARA EVENTOS')}</Text><Text style={s.title}>{prefs.tr('createAssignment')}.</Text><Text style={s.sub}>{kind==='transport'?L('Define airports, schedule and exact professional requirements.','Définissez les aéroports, le planning et les exigences professionnelles précises.','Define aeropuertos, horario y requisitos profesionales exactos.'):L('Define the event, location, staffing window and exact requirements.','Définissez l’événement, le lieu, le créneau et les exigences précises.','Define el evento, ubicación, periodo y requisitos exactos.')} {L('Never enter patient-identifying medical information.','Ne saisissez jamais de données médicales permettant d’identifier un patient.','Nunca introduzcas información médica identificable de pacientes.')}</Text>{done?<View style={s.success}><Text style={s.successTitle}>{L('Assignment published','Mission publiée','Misión publicada')}</Text><Text style={s.successText}>{L('Eligible verified professionals have been notified.','Les professionnels vérifiés éligibles ont été notifiés.','Los profesionales verificados elegibles han sido notificados.')}</Text><Pressable style={s.primary} onPress={()=>router.replace('/company')}><Text style={s.primaryText}>{L('Back to organization','Retour à l’organisation','Volver a la organización')}</Text></Pressable></View>:<><Card title={L('Professional required','Professionnel requis','Profesional requerido')}><Segment role={role} setRole={setRole} doctor={prefs.tr('doctor')} nurse={prefs.tr('nurse')}/><Field label={L('Required specialty / clinical profile','Spécialité / profil clinique requis','Especialidad / perfil clínico requerido')} value={specialty} set={setSpecialty}/><View style={s.row}><Field label={L('Minimum years','Années minimum','Años mínimos')} value={minYears} set={setMinYears} keyboard="number-pad"/><Field label={L('Number of professionals','Nombre de professionnels','Número de profesionales')} value={staffCount} set={setStaffCount} keyboard="number-pad"/></View><Field label={L('Required languages','Langues requises','Idiomas requeridos')} value={languages} set={setLanguages}/><Field label={L('Operational requirements','Exigences opérationnelles','Requisitos operativos')} value={notes} set={setNotes} multiline/></Card>{kind==='transport'?<Card title={L('Air route','Trajet aérien','Ruta aérea')}><View style={s.row}><Field label={L('Departure IATA','IATA départ','IATA salida')} value={fromCode} set={setFromCode} cap="characters"/><Field label={L('Arrival IATA','IATA arrivée','IATA llegada')} value={toCode} set={setToCode} cap="characters"/></View><Field label={L('Departure airport / city','Aéroport / ville de départ','Aeropuerto / ciudad de salida')} value={fromName} set={setFromName}/><Field label={L('Destination airport / city','Aéroport / ville de destination','Aeropuerto / ciudad de destino')} value={toName} set={setToName}/><Field label={L('Return / positioning arrangements','Modalités retour / positionnement','Condiciones de regreso / posicionamiento')} value={returnInfo} set={setReturnInfo}/></Card>:<Card title={L('Event','Événement','Evento')}><Field label={L('Event name','Nom de l’événement','Nombre del evento')} value={eventName} set={setEventName}/><Field label={L('Event type','Type d’événement','Tipo de evento')} value={eventType} set={setEventType}/><Field label={L('Venue','Lieu','Lugar')} value={venue} set={setVenue}/><View style={s.row}><Field label={L('City','Ville','Ciudad')} value={eventCity} set={setEventCity}/><Field label={L('Country','Pays','País')} value={eventCountry} set={setEventCountry}/></View><View style={s.row}><Field label={L('Expected attendance','Fréquentation prévue','Asistencia prevista')} value={attendance} set={setAttendance} keyboard="number-pad"/><Field label={L('On-site contact','Contact sur site','Contacto en sitio')} value={onSite} set={setOnSite}/></View></Card>}<Card title={L('Schedule','Planning','Horario')}><View style={s.row}><Field label={L('Start date','Date de début','Fecha de inicio')} value={date} set={setDate} placeholder="YYYY-MM-DD"/><Field label={L('Start time','Heure de début','Hora de inicio')} value={time} set={setTime} placeholder="HH:MM"/></View>{kind==='event'?<View style={s.row}><Field label={L('End date','Date de fin','Fecha de fin')} value={endDate} set={setEndDate} placeholder="YYYY-MM-DD"/><Field label={L('End time','Heure de fin','Hora de fin')} value={endTime} set={setEndTime} placeholder="HH:MM"/></View>:null}<Field label={L('Expected duty duration (hours)','Durée prévue de la mission (heures)','Duración prevista (horas)')} value={duration} set={setDuration} keyboard="decimal-pad"/></Card><Card title={L('Compensation & MediCrew','Rémunération & MediCrew','Compensación y MediCrew')}><Field label={L('Professional fee','Rémunération du professionnel','Honorarios profesionales')} value={fee} set={setFee} keyboard="decimal-pad"/><Text style={s.label}>{L('Contract currency','Devise contractuelle','Moneda contractual')}</Text><View style={s.currencyRow}>{supportedCurrencies.map(x=><Pressable key={x.code} onPress={()=>setCurrency(x.code)} style={[s.currencyChip,currency===x.code&&s.currencyOn]}><Text style={[s.currencyText,currency===x.code&&s.currencyTextOn]}>{x.code}</Text></Pressable>)}</View><View style={s.invoice}><Text style={s.invoiceTitle}>MediCrew · 11%</Text><Text style={s.invoiceText}>{L('Professional fee','Rémunération','Honorarios')}: {Number.isFinite(amount)?formatMoney(Math.round(amount*100),currency,prefs.language):formatMoney(0,currency,prefs.language)} · MediCrew: {formatMoney(Math.round(platform*100),currency,prefs.language)}. {L('Professional compensation is paid directly outside MediCrew.','La rémunération du professionnel est payée directement hors MediCrew.','La compensación profesional se paga directamente fuera de MediCrew.')}</Text></View><Pressable onPress={()=>setAccepted(v=>!v)} style={s.accept}><View style={[s.box,accepted&&s.boxOn]}>{accepted?<Text style={s.tick}>✓</Text>:null}</View><Text style={s.acceptText}>{L('I accept the MediCrew business billing terms for this assignment.','J’accepte les conditions de facturation MediCrew pour cette mission.','Acepto las condiciones de facturación de MediCrew para esta misión.')}</Text></Pressable></Card><Pressable disabled={saving} onPress={publish} style={[s.primary,saving&&{opacity:.55}]}><Text style={s.primaryText}>{saving?L('Publishing…','Publication…','Publicando…'):L('Publish assignment','Publier la mission','Publicar misión')}</Text></Pressable></>}</ScrollView></SafeAreaView>}
-function Card({title,children}:{title:string;children:React.ReactNode}){return <View style={s.card}><Text style={s.cardTitle}>{title}</Text>{children}</View>}function Field({label,value,set,placeholder='',keyboard,cap='words',multiline=false}:{label:string;value:string;set:(v:string)=>void;placeholder?:string;keyboard?:any;cap?:any;multiline?:boolean}){return <View style={s.field}><Text style={s.label}>{label}</Text><TextInput value={value} onChangeText={set} placeholder={placeholder} keyboardType={keyboard} autoCapitalize={cap} multiline={multiline} style={[s.input,multiline&&s.multi]}/></View>}function Segment({role,setRole,doctor,nurse}:{role:'doctor'|'nurse';setRole:(v:'doctor'|'nurse')=>void;doctor:string;nurse:string}){return <View style={s.segment}>{(['doctor','nurse'] as const).map(x=><Pressable key={x} onPress={()=>setRole(x)} style={[s.segmentItem,role===x&&s.segmentOn]}><Text style={[s.segmentText,role===x&&s.segmentTextOn]}>{x==='doctor'?doctor:nurse}</Text></Pressable>)}</View>}
-const s=StyleSheet.create({safe:{flex:1,backgroundColor:colors.paper},container:{padding:22,paddingBottom:50},back:{fontSize:15,fontWeight:'800',color:colors.ink,marginBottom:23},eyebrow:{fontSize:10,fontWeight:'900',letterSpacing:1.4,color:colors.company},title:{fontSize:34,fontWeight:'900',color:colors.ink,marginTop:6},sub:{fontSize:13,lineHeight:20,color:colors.muted,marginTop:7,marginBottom:16},card:{backgroundColor:colors.white,borderWidth:1,borderColor:colors.line,borderRadius:radii.lg,padding:17,marginBottom:12},cardTitle:{fontSize:17,fontWeight:'900',color:colors.ink,marginBottom:13},row:{flexDirection:'row',gap:10},field:{flex:1,marginBottom:12},label:{fontSize:11,fontWeight:'800',color:colors.muted,marginBottom:6},input:{minHeight:48,borderWidth:1,borderColor:colors.line,borderRadius:12,paddingHorizontal:12,color:colors.ink,backgroundColor:colors.paper},multi:{height:90,textAlignVertical:'top',paddingTop:12},segment:{flexDirection:'row',backgroundColor:colors.paper,borderRadius:12,padding:4,marginBottom:13},segmentItem:{flex:1,paddingVertical:11,alignItems:'center',borderRadius:9},segmentOn:{backgroundColor:colors.companyDark},segmentText:{fontSize:12,fontWeight:'800',color:colors.muted},segmentTextOn:{color:colors.white},currencyRow:{flexDirection:'row',gap:7,marginBottom:12},currencyChip:{flex:1,paddingVertical:10,borderWidth:1,borderColor:colors.line,borderRadius:10,alignItems:'center'},currencyOn:{backgroundColor:colors.companyDark,borderColor:colors.companyDark},currencyText:{fontSize:11,fontWeight:'900',color:colors.muted},currencyTextOn:{color:colors.white},invoice:{padding:13,borderRadius:radii.md,backgroundColor:colors.companySoft},invoiceTitle:{fontSize:13,fontWeight:'900',color:colors.companyDark},invoiceText:{fontSize:11,lineHeight:17,color:colors.muted,marginTop:4},accept:{flexDirection:'row',alignItems:'flex-start',gap:9,marginTop:12},box:{width:22,height:22,borderWidth:1.5,borderColor:colors.line,borderRadius:6,alignItems:'center',justifyContent:'center'},boxOn:{backgroundColor:colors.companyDark,borderColor:colors.companyDark},tick:{color:colors.white,fontWeight:'900'},acceptText:{flex:1,fontSize:11,lineHeight:17,color:colors.ink},primary:{height:56,borderRadius:radii.md,backgroundColor:colors.companyDark,alignItems:'center',justifyContent:'center'},primaryText:{fontSize:14,fontWeight:'900',color:colors.white},success:{padding:20,borderRadius:radii.lg,backgroundColor:colors.white,borderWidth:1,borderColor:colors.line},successTitle:{fontSize:21,fontWeight:'900',color:colors.ink},successText:{fontSize:12,lineHeight:18,color:colors.muted,marginTop:5,marginBottom:16}});
+import { useEffect, useMemo, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { router } from "expo-router";
+import { colors, radii } from "../lib/theme";
+import { supabase } from "../lib/supabase";
+import { usePreferences } from "../lib/preferences-context";
+import {
+  Currency,
+  formatMoney,
+  localize,
+  supportedCurrencies,
+} from "../lib/i18n";
+type Kind = "transport" | "event";
+const parseDateTime = (date: string, time: string) => {
+  const d = new Date(`${date}T${time}:00`);
+  return Number.isNaN(d.getTime()) ? null : d;
+};
+const formatDate = (value: string) => {
+  const digits = value.replace(/\D/g, "").slice(0, 8);
+  return [digits.slice(0, 4), digits.slice(4, 6), digits.slice(6, 8)].filter(Boolean).join("-");
+};
+const formatTime = (value: string) => {
+  const digits = value.replace(/\D/g, "").slice(0, 4);
+  return [digits.slice(0, 2), digits.slice(2, 4)].filter(Boolean).join(":");
+};
+export default function CompanyMission() {
+  const prefs = usePreferences();
+  const L = (en: string, fr: string, es: string) =>
+    localize(prefs.language, en, fr, es);
+  const [kind, setKind] = useState<Kind>("transport"),
+    [loading, setLoading] = useState(true),
+    [preview, setPreview] = useState(false),
+    [saving, setSaving] = useState(false),
+    [done, setDone] = useState("");
+  const [role, setRole] = useState<"doctor" | "nurse">("nurse"),
+    [specialty, setSpecialty] = useState(""),
+    [minYears, setMinYears] = useState("0"),
+    [staffCount, setStaffCount] = useState("1"),
+    [languages, setLanguages] = useState("English"),
+    [fee, setFee] = useState(""),
+    [currency, setCurrency] = useState<Currency>(prefs.currency),
+    [duration, setDuration] = useState(""),
+    [notes, setNotes] = useState(""),
+    [accepted, setAccepted] = useState(false);
+  const [fromCode, setFromCode] = useState(""),
+    [toCode, setToCode] = useState(""),
+    [fromName, setFromName] = useState(""),
+    [toName, setToName] = useState(""),
+    [date, setDate] = useState(""),
+    [time, setTime] = useState(""),
+    [returnInfo, setReturnInfo] = useState("");
+  const [eventName, setEventName] = useState(""),
+    [eventType, setEventType] = useState(""),
+    [venue, setVenue] = useState(""),
+    [eventCity, setEventCity] = useState(""),
+    [eventCountry, setEventCountry] = useState(""),
+    [endDate, setEndDate] = useState(""),
+    [endTime, setEndTime] = useState(""),
+    [attendance, setAttendance] = useState(""),
+    [onSite, setOnSite] = useState("");
+  useEffect(() => {
+    void load();
+  }, []);
+  async function load() {
+    if (!supabase) {
+      setLoading(false);
+      return;
+    }
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      if (__DEV__) setPreview(true);
+      setLoading(false);
+      return;
+    }
+    const { data } = await supabase
+      .from("companies")
+      .select("company_type")
+      .eq("id", user.id)
+      .maybeSingle();
+    setKind(data?.company_type === "event" ? "event" : "transport");
+    setLoading(false);
+  }
+  const amount = Number(fee.replace(",", "."));
+  const platform = useMemo(
+    () => (Number.isFinite(amount) ? Math.round(amount * 11) / 100 : 0),
+    [amount],
+  );
+  async function publish() {
+    if (preview)
+      return Alert.alert(
+        L(
+          "Development preview",
+          "Aperçu de développement",
+          "Vista previa de desarrollo",
+        ),
+      );
+    if (!supabase) return;
+    if (!accepted)
+      return Alert.alert(
+        L(
+          "Billing terms required",
+          "Conditions de facturation requises",
+          "Se requieren condiciones de facturación",
+        ),
+      );
+    if (!date || !time)
+      return Alert.alert(
+        L("Schedule required", "Planning requis", "Horario obligatorio"),
+      );
+    const start = parseDateTime(date, time);
+    if (!start || start <= new Date())
+      return Alert.alert(
+        L("Invalid schedule", "Planning invalide", "Horario no válido"),
+      );
+    if (!Number.isFinite(amount) || amount <= 0)
+      return Alert.alert(
+        L(
+          "Professional fee required",
+          "Rémunération requise",
+          "Honorarios obligatorios",
+        ),
+      );
+    if (!duration || Number(duration) <= 0)
+      return Alert.alert(
+        L("Duration required", "Durée requise", "Duración obligatoria"),
+      );
+    if (!specialty.trim())
+      return Alert.alert(
+        L(
+          "Clinical specialty required",
+          "Spécialité clinique requise",
+          "Especialidad clínica obligatoria",
+        ),
+      );
+    if (
+      kind === "transport" &&
+      (!/^[A-Za-z]{3}$/.test(fromCode.trim()) ||
+        !/^[A-Za-z]{3}$/.test(toCode.trim()) ||
+        !fromName.trim() ||
+        !toName.trim())
+    )
+      return Alert.alert(
+        L("Airports required", "Aéroports requis", "Aeropuertos obligatorios"),
+      );
+    if (
+      kind === "event" &&
+      (!eventName.trim() ||
+        !venue.trim() ||
+        !eventCity.trim() ||
+        !eventCountry.trim() ||
+        !endDate ||
+        !endTime)
+    )
+      return Alert.alert(
+        L(
+          "Event details required",
+          "Informations événement requises",
+          "Datos del evento obligatorios",
+        ),
+      );
+    const end = kind === "event" ? parseDateTime(endDate, endTime) : null;
+    if (kind === "event" && (!end || end <= start))
+      return Alert.alert(
+        L(
+          "Invalid event window",
+          "Créneau événement invalide",
+          "Periodo del evento no válido",
+        ),
+      );
+    setSaving(true);
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user)
+        throw new Error(
+          L(
+            "Sign in required",
+            "Connexion requise",
+            "Inicio de sesión obligatorio",
+          ),
+        );
+      const company = await supabase
+        .from("companies")
+        .select("verification_status,company_type")
+        .eq("id", user.id)
+        .maybeSingle();
+      if (company.error || !company.data)
+        throw company.error || new Error("Organization profile missing");
+      if (company.data.verification_status !== "verified")
+        throw new Error(
+          L(
+            "MediCrew must verify your organization before publishing.",
+            "MediCrew doit vérifier votre organisation avant toute publication.",
+            "MediCrew debe verificar tu organización antes de publicar.",
+          ),
+        );
+      const languageList = languages
+        .split(",")
+        .map((x) => x.trim())
+        .filter(Boolean);
+      const title =
+        kind === "transport"
+          ? `${role === "doctor" ? "Doctor" : "Nurse"} · ${fromCode.trim().toUpperCase()} → ${toCode.trim().toUpperCase()}`
+          : `${eventName.trim()} · ${role === "doctor" ? "Doctor" : "Nurse"}`;
+      const payload: any = {
+        company_id: user.id,
+        title,
+        mission_kind: kind,
+        departure_location:
+          kind === "transport" ? fromName.trim() : eventCity.trim(),
+        destination_location:
+          kind === "transport" ? toName.trim() : eventCity.trim(),
+        departure_at: start.toISOString(),
+        estimated_duration_hours: Number(duration),
+        transport_type: "air",
+        professional_type: role,
+        compensation_cents: Math.round(amount * 100),
+        compensation_currency: currency,
+        expenses_covered: true,
+        return_arrangements:
+          kind === "transport" ? returnInfo.trim() || null : null,
+        status: "draft",
+        service_fee_bps: 1100,
+        required_specialty: specialty.trim(),
+        minimum_experience_years: Number(minYears) || 0,
+        required_languages: languageList,
+        staff_count: Number(staffCount) || 1,
+        operational_notes: notes.trim() || null,
+      };
+      if (kind === "transport") {
+        payload.departure_airport_code = fromCode.trim().toUpperCase();
+        payload.arrival_airport_code = toCode.trim().toUpperCase();
+      } else {
+        payload.event_name = eventName.trim();
+        payload.event_type = eventType.trim() || null;
+        payload.event_venue = venue.trim();
+        payload.event_city = eventCity.trim();
+        payload.event_country = eventCountry.trim();
+        payload.event_end_at = end!.toISOString();
+        payload.expected_attendance = attendance ? Number(attendance) : null;
+        payload.on_site_contact = onSite.trim() || null;
+      }
+      const created = await supabase
+        .from("missions")
+        .insert(payload)
+        .select("id")
+        .single();
+      if (created.error) throw created.error;
+      const billing = await supabase.rpc("company_accepts_mission_billing", {
+        p_mission_id: created.data.id,
+        p_terms_version: "1.0",
+      });
+      if (billing.error) {
+        await supabase.from("missions").delete().eq("id", created.data.id);
+        throw billing.error;
+      }
+      const published = await supabase.rpc("publish_network_assignment", {
+        p_mission_id: created.data.id,
+      });
+      if (published.error) {
+        await supabase.from("missions").delete().eq("id", created.data.id);
+        throw published.error;
+      }
+      setDone(created.data.id);
+    } catch (e: any) {
+      Alert.alert(
+        L(
+          "Could not publish assignment",
+          "Impossible de publier la mission",
+          "No se pudo publicar la misión",
+        ),
+        e?.message || "Unknown error",
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+  if (loading)
+    return (
+      <SafeAreaView style={s.safe}>
+        <ActivityIndicator
+          style={{ marginTop: 90 }}
+          color={colors.company}
+          size="large"
+        />
+      </SafeAreaView>
+    );
+  return (
+    <SafeAreaView style={s.safe}>
+      <ScrollView
+        contentContainerStyle={s.container}
+        keyboardShouldPersistTaps="handled"
+      >
+        <Pressable onPress={() => router.back()}>
+          <Text style={s.back}>‹ {prefs.tr("back")}</Text>
+        </Pressable>
+        <Text style={s.eyebrow}>
+          {kind === "transport"
+            ? L(
+                "AIR MEDICAL TRANSPORT",
+                "TRANSPORT MÉDICAL AÉRIEN",
+                "TRANSPORTE MÉDICO AÉREO",
+              )
+            : L(
+                "EVENT MEDICAL STAFFING",
+                "MÉDICAL ÉVÉNEMENTIEL",
+                "PERSONAL MÉDICO PARA EVENTOS",
+              )}
+        </Text>
+        <Text style={s.title}>{prefs.tr("createAssignment")}.</Text>
+        <Text style={s.sub}>
+          {kind === "transport"
+            ? L(
+                "Define airports, schedule and exact professional requirements.",
+                "Définissez les aéroports, le planning et les exigences professionnelles précises.",
+                "Define aeropuertos, horario y requisitos profesionales exactos.",
+              )
+            : L(
+                "Define the event, location, staffing window and exact requirements.",
+                "Définissez l’événement, le lieu, le créneau et les exigences précises.",
+                "Define el evento, ubicación, periodo y requisitos exactos.",
+              )}{" "}
+          {L(
+            "Never enter patient-identifying medical information.",
+            "Ne saisissez jamais de données médicales permettant d’identifier un patient.",
+            "Nunca introduzcas información médica identificable de pacientes.",
+          )}
+        </Text>
+        {done ? (
+          <View style={s.success}>
+            <Text style={s.successTitle}>
+              {L("Assignment published", "Mission publiée", "Misión publicada")}
+            </Text>
+            <Text style={s.successText}>
+              {L(
+                "Eligible verified professionals have been notified.",
+                "Les professionnels vérifiés éligibles ont été notifiés.",
+                "Los profesionales verificados elegibles han sido notificados.",
+              )}
+            </Text>
+            <Pressable
+              style={s.primary}
+              onPress={() => router.replace("/company")}
+            >
+              <Text style={s.primaryText}>
+                {L(
+                  "Back to organization",
+                  "Retour à l’organisation",
+                  "Volver a la organización",
+                )}
+              </Text>
+            </Pressable>
+          </View>
+        ) : (
+          <>
+            <Card
+              title={L(
+                "Professional required",
+                "Professionnel requis",
+                "Profesional requerido",
+              )}
+            >
+              <Segment
+                role={role}
+                setRole={setRole}
+                doctor={prefs.tr("doctor")}
+                nurse={prefs.tr("nurse")}
+              />
+              <Field
+                label={L(
+                  "Required specialty / clinical profile",
+                  "Spécialité / profil clinique requis",
+                  "Especialidad / perfil clínico requerido",
+                )}
+                value={specialty}
+                set={setSpecialty}
+              />
+              <View style={s.row}>
+                <Field
+                  label={L("Minimum years", "Années minimum", "Años mínimos")}
+                  value={minYears}
+                  set={setMinYears}
+                  keyboard="number-pad"
+                />
+                <Field
+                  label={L(
+                    "Number of professionals",
+                    "Nombre de professionnels",
+                    "Número de profesionales",
+                  )}
+                  value={staffCount}
+                  set={setStaffCount}
+                  keyboard="number-pad"
+                />
+              </View>
+              <Field
+                label={L(
+                  "Required languages",
+                  "Langues requises",
+                  "Idiomas requeridos",
+                )}
+                value={languages}
+                set={setLanguages}
+              />
+              <Field
+                label={L(
+                  "Operational requirements",
+                  "Exigences opérationnelles",
+                  "Requisitos operativos",
+                )}
+                value={notes}
+                set={setNotes}
+                multiline
+              />
+            </Card>
+            {kind === "transport" ? (
+              <Card title={L("Air route", "Trajet aérien", "Ruta aérea")}>
+                <View style={s.row}>
+                  <Field
+                    label={L("Departure IATA", "IATA départ", "IATA salida")}
+                    value={fromCode}
+                    set={setFromCode}
+                    cap="characters"
+                  />
+                  <Field
+                    label={L("Arrival IATA", "IATA arrivée", "IATA llegada")}
+                    value={toCode}
+                    set={setToCode}
+                    cap="characters"
+                  />
+                </View>
+                <Field
+                  label={L(
+                    "Departure airport / city",
+                    "Aéroport / ville de départ",
+                    "Aeropuerto / ciudad de salida",
+                  )}
+                  value={fromName}
+                  set={setFromName}
+                />
+                <Field
+                  label={L(
+                    "Destination airport / city",
+                    "Aéroport / ville de destination",
+                    "Aeropuerto / ciudad de destino",
+                  )}
+                  value={toName}
+                  set={setToName}
+                />
+                <Field
+                  label={L(
+                    "Return / positioning arrangements",
+                    "Modalités retour / positionnement",
+                    "Condiciones de regreso / posicionamiento",
+                  )}
+                  value={returnInfo}
+                  set={setReturnInfo}
+                />
+              </Card>
+            ) : (
+              <Card title={L("Event", "Événement", "Evento")}>
+                <Field
+                  label={L(
+                    "Event name",
+                    "Nom de l’événement",
+                    "Nombre del evento",
+                  )}
+                  value={eventName}
+                  set={setEventName}
+                />
+                <Field
+                  label={L("Event type", "Type d’événement", "Tipo de evento")}
+                  value={eventType}
+                  set={setEventType}
+                />
+                <Field
+                  label={L("Venue", "Lieu", "Lugar")}
+                  value={venue}
+                  set={setVenue}
+                />
+                <View style={s.row}>
+                  <Field
+                    label={L("City", "Ville", "Ciudad")}
+                    value={eventCity}
+                    set={setEventCity}
+                  />
+                  <Field
+                    label={L("Country", "Pays", "País")}
+                    value={eventCountry}
+                    set={setEventCountry}
+                  />
+                </View>
+                <View style={s.row}>
+                  <Field
+                    label={L(
+                      "Expected attendance",
+                      "Fréquentation prévue",
+                      "Asistencia prevista",
+                    )}
+                    value={attendance}
+                    set={setAttendance}
+                    keyboard="number-pad"
+                  />
+                  <Field
+                    label={L(
+                      "On-site contact",
+                      "Contact sur site",
+                      "Contacto en sitio",
+                    )}
+                    value={onSite}
+                    set={setOnSite}
+                  />
+                </View>
+              </Card>
+            )}
+            <Card title={L("Schedule", "Planning", "Horario")}>
+              <View style={s.row}>
+                <Field
+                  label={L("Start date", "Date de début", "Fecha de inicio")}
+                  value={date}
+                  set={(value) => setDate(formatDate(value))}
+                  placeholder="YYYY-MM-DD"
+                  keyboard="number-pad"
+                />
+                <Field
+                  label={L("Start time", "Heure de début", "Hora de inicio")}
+                  value={time}
+                  set={(value) => setTime(formatTime(value))}
+                  placeholder="HH:MM"
+                  keyboard="number-pad"
+                />
+              </View>
+              {kind === "event" ? (
+                <View style={s.row}>
+                  <Field
+                    label={L("End date", "Date de fin", "Fecha de fin")}
+                    value={endDate}
+                    set={(value) => setEndDate(formatDate(value))}
+                    placeholder="YYYY-MM-DD"
+                    keyboard="number-pad"
+                  />
+                  <Field
+                    label={L("End time", "Heure de fin", "Hora de fin")}
+                    value={endTime}
+                    set={(value) => setEndTime(formatTime(value))}
+                    placeholder="HH:MM"
+                    keyboard="number-pad"
+                  />
+                </View>
+              ) : null}
+              <Field
+                label={L(
+                  "Expected duty duration (hours)",
+                  "Durée prévue de la mission (heures)",
+                  "Duración prevista (horas)",
+                )}
+                value={duration}
+                set={setDuration}
+                keyboard="decimal-pad"
+              />
+            </Card>
+            <Card
+              title={L(
+                "Compensation & MediCrew",
+                "Rémunération & MediCrew",
+                "Compensación y MediCrew",
+              )}
+            >
+              <Field
+                label={L(
+                  "Professional fee",
+                  "Rémunération du professionnel",
+                  "Honorarios profesionales",
+                )}
+                value={fee}
+                set={setFee}
+                keyboard="decimal-pad"
+              />
+              <Text style={s.label}>
+                {L(
+                  "Contract currency",
+                  "Devise contractuelle",
+                  "Moneda contractual",
+                )}
+              </Text>
+              <View style={s.currencyRow}>
+                {supportedCurrencies.map((x) => (
+                  <Pressable
+                    key={x.code}
+                    onPress={() => setCurrency(x.code)}
+                    style={[
+                      s.currencyChip,
+                      currency === x.code && s.currencyOn,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        s.currencyText,
+                        currency === x.code && s.currencyTextOn,
+                      ]}
+                    >
+                      {x.code}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+              <View style={s.invoice}>
+                <Text style={s.invoiceTitle}>MediCrew · 11%</Text>
+                <Text style={s.invoiceText}>
+                  {L("Professional fee", "Rémunération", "Honorarios")}:{" "}
+                  {Number.isFinite(amount)
+                    ? formatMoney(
+                        Math.round(amount * 100),
+                        currency,
+                        prefs.language,
+                      )
+                    : formatMoney(0, currency, prefs.language)}{" "}
+                  · MediCrew:{" "}
+                  {formatMoney(
+                    Math.round(platform * 100),
+                    currency,
+                    prefs.language,
+                  )}
+                  .{" "}
+                  {L(
+                    "Professional compensation is paid directly outside MediCrew.",
+                    "La rémunération du professionnel est payée directement hors MediCrew.",
+                    "La compensación profesional se paga directamente fuera de MediCrew.",
+                  )}
+                </Text>
+              </View>
+              <Pressable
+                onPress={() => setAccepted((v) => !v)}
+                style={s.accept}
+              >
+                <View style={[s.box, accepted && s.boxOn]}>
+                  {accepted ? <Text style={s.tick}>✓</Text> : null}
+                </View>
+                <Text style={s.acceptText}>
+                  {L(
+                    "I accept the MediCrew business billing terms for this assignment.",
+                    "J’accepte les conditions de facturation MediCrew pour cette mission.",
+                    "Acepto las condiciones de facturación de MediCrew para esta misión.",
+                  )}
+                </Text>
+              </Pressable>
+            </Card>
+            <Pressable
+              disabled={saving}
+              onPress={publish}
+              style={[s.primary, saving && { opacity: 0.55 }]}
+            >
+              <Text style={s.primaryText}>
+                {saving
+                  ? L("Publishing…", "Publication…", "Publicando…")
+                  : L(
+                      "Publish assignment",
+                      "Publier la mission",
+                      "Publicar misión",
+                    )}
+              </Text>
+            </Pressable>
+          </>
+        )}
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+function Card({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <View style={s.card}>
+      <Text style={s.cardTitle}>{title}</Text>
+      {children}
+    </View>
+  );
+}
+function Field({
+  label,
+  value,
+  set,
+  placeholder = "",
+  keyboard,
+  cap = "words",
+  multiline = false,
+}: {
+  label: string;
+  value: string;
+  set: (v: string) => void;
+  placeholder?: string;
+  keyboard?: any;
+  cap?: any;
+  multiline?: boolean;
+}) {
+  return (
+    <View style={s.field}>
+      <Text style={s.label}>{label}</Text>
+      <TextInput
+        value={value}
+        onChangeText={set}
+        placeholder={placeholder}
+        keyboardType={keyboard}
+        autoCapitalize={cap}
+        multiline={multiline}
+        style={[s.input, multiline && s.multi]}
+      />
+    </View>
+  );
+}
+function Segment({
+  role,
+  setRole,
+  doctor,
+  nurse,
+}: {
+  role: "doctor" | "nurse";
+  setRole: (v: "doctor" | "nurse") => void;
+  doctor: string;
+  nurse: string;
+}) {
+  return (
+    <View style={s.segment}>
+      {(["doctor", "nurse"] as const).map((x) => (
+        <Pressable
+          key={x}
+          onPress={() => setRole(x)}
+          style={[s.segmentItem, role === x && s.segmentOn]}
+        >
+          <Text style={[s.segmentText, role === x && s.segmentTextOn]}>
+            {x === "doctor" ? doctor : nurse}
+          </Text>
+        </Pressable>
+      ))}
+    </View>
+  );
+}
+const s = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: colors.paper },
+  container: { padding: 22, paddingBottom: 180 },
+  back: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: colors.ink,
+    marginBottom: 23,
+  },
+  eyebrow: {
+    fontSize: 10,
+    fontWeight: "900",
+    letterSpacing: 1.4,
+    color: colors.company,
+  },
+  title: { fontSize: 34, fontWeight: "900", color: colors.ink, marginTop: 6 },
+  sub: {
+    fontSize: 13,
+    lineHeight: 20,
+    color: colors.muted,
+    marginTop: 7,
+    marginBottom: 16,
+  },
+  card: {
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: radii.lg,
+    padding: 17,
+    marginBottom: 12,
+  },
+  cardTitle: {
+    fontSize: 17,
+    fontWeight: "900",
+    color: colors.ink,
+    marginBottom: 13,
+  },
+  row: { flexDirection: "row", gap: 10 },
+  field: { flex: 1, marginBottom: 12 },
+  label: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: colors.muted,
+    marginBottom: 6,
+  },
+  input: {
+    minHeight: 48,
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    color: colors.ink,
+    backgroundColor: colors.paper,
+  },
+  multi: { height: 90, textAlignVertical: "top", paddingTop: 12 },
+  segment: {
+    flexDirection: "row",
+    backgroundColor: colors.paper,
+    borderRadius: 12,
+    padding: 4,
+    marginBottom: 13,
+  },
+  segmentItem: {
+    flex: 1,
+    paddingVertical: 11,
+    alignItems: "center",
+    borderRadius: 9,
+  },
+  segmentOn: { backgroundColor: colors.companyDark },
+  segmentText: { fontSize: 12, fontWeight: "800", color: colors.muted },
+  segmentTextOn: { color: colors.white },
+  currencyRow: { flexDirection: "row", gap: 7, marginBottom: 12 },
+  currencyChip: {
+    flex: 1,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: 10,
+    alignItems: "center",
+  },
+  currencyOn: {
+    backgroundColor: colors.companyDark,
+    borderColor: colors.companyDark,
+  },
+  currencyText: { fontSize: 11, fontWeight: "900", color: colors.muted },
+  currencyTextOn: { color: colors.white },
+  invoice: {
+    padding: 13,
+    borderRadius: radii.md,
+    backgroundColor: colors.companySoft,
+  },
+  invoiceTitle: { fontSize: 13, fontWeight: "900", color: colors.companyDark },
+  invoiceText: {
+    fontSize: 11,
+    lineHeight: 17,
+    color: colors.muted,
+    marginTop: 4,
+  },
+  accept: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 9,
+    marginTop: 12,
+  },
+  box: {
+    width: 22,
+    height: 22,
+    borderWidth: 1.5,
+    borderColor: colors.line,
+    borderRadius: 6,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  boxOn: {
+    backgroundColor: colors.companyDark,
+    borderColor: colors.companyDark,
+  },
+  tick: { color: colors.white, fontWeight: "900" },
+  acceptText: { flex: 1, fontSize: 11, lineHeight: 17, color: colors.ink },
+  primary: {
+    height: 56,
+    borderRadius: radii.md,
+    backgroundColor: colors.companyDark,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  primaryText: { fontSize: 14, fontWeight: "900", color: colors.white },
+  success: {
+    padding: 20,
+    borderRadius: radii.lg,
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.line,
+  },
+  successTitle: { fontSize: 21, fontWeight: "900", color: colors.ink },
+  successText: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: colors.muted,
+    marginTop: 5,
+    marginBottom: 16,
+  },
+});
