@@ -7,12 +7,17 @@ type EmailItem={id:string;profile_id:string;recipient_email:string;subject:strin
 
 Deno.serve(async(req)=>{
  if(req.method==='OPTIONS')return new Response('ok',{headers:cors});
- const cronSecret=Deno.env.get('PUSH_DISPATCH_SECRET');
- if(!cronSecret)return new Response(JSON.stringify({error:'Push dispatcher is not configured'}),{status:503,headers:{...cors,'Content-Type':'application/json'}});
- if(req.headers.get('x-cron-secret')!==cronSecret)return new Response('Unauthorized',{status:401,headers:cors});
  try{
   const url=Deno.env.get('SUPABASE_URL');const serviceKey=Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');if(!url||!serviceKey)throw new Error('Supabase service configuration is missing');
-  const admin=createClient(url,serviceKey);let processed=0;let emailsProcessed=0;
+  const admin=createClient(url,serviceKey);
+  const cronSecret=Deno.env.get('PUSH_DISPATCH_SECRET');
+  let authorized=!!cronSecret&&req.headers.get('x-cron-secret')===cronSecret;
+  if(!authorized){
+   const token=req.headers.get('authorization')?.replace(/^Bearer\s+/i,'');
+   if(token){const{data:{user}}=await admin.auth.getUser(token);if(user){const{data:profile}=await admin.from('profiles').select('role').eq('id',user.id).maybeSingle();authorized=profile?.role==='admin'}}
+  }
+  if(!authorized)return new Response('Unauthorized',{status:401,headers:cors});
+  let processed=0;let emailsProcessed=0;
   const{data:queue,error:queueError}=await admin.from('notification_push_queue').select('id,profile_id,title,body,data').is('delivered_at',null).order('created_at',{ascending:true}).limit(100);if(queueError)throw queueError;
   for(const item of ((queue||[]) as QueueItem[])){
    const{data:tokens,error:tokenError}=await admin.from('push_tokens').select('id,profile_id,expo_push_token,platform').eq('profile_id',item.profile_id);if(tokenError)throw tokenError;
