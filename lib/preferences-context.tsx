@@ -30,8 +30,10 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
       const { data: { user } } = await c.auth.getUser();
       if (user) {
         const { data } = await c.from('profiles').select('preferred_language,preferred_currency').eq('id', user.id).maybeSingle();
-        if (alive && (data?.preferred_language === 'en' || data?.preferred_language === 'fr' || data?.preferred_language === 'es')) setLanguage(data.preferred_language);
-        if (alive && ['EUR','USD','GBP','CHF'].includes(data?.preferred_currency)) setCurrency(data.preferred_currency as Currency);
+        const preferredLanguage = data?.preferred_language;
+        const preferredCurrency = data?.preferred_currency;
+        if (alive && (preferredLanguage === 'en' || preferredLanguage === 'fr' || preferredLanguage === 'es')) setLanguage(preferredLanguage);
+        if (alive && (preferredCurrency === 'EUR' || preferredCurrency === 'USD')) setCurrency(preferredCurrency);
       }
       if (alive) setReady(true);
     };
@@ -44,7 +46,7 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
     let alive = true;
     const loadRates = async () => {
       try {
-        const r = await fetch('https://api.frankfurter.app/latest?from=EUR&to=USD,GBP,CHF');
+        const r = await fetch('https://api.frankfurter.app/latest?from=EUR&to=USD');
         if (!r.ok) return;
         const json = await r.json() as { rates?: FxRates };
         if (alive && json.rates) setRates({ EUR: 1, ...json.rates });
