@@ -1,6 +1,6 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { useEffect, useRef, useState } from "react";
-import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
+import { Animated, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import Svg, { Circle, Path, Rect } from "react-native-svg";
@@ -9,6 +9,7 @@ import { MediCrewLogo } from "../lib/brand";
 import { usePreferences } from "../lib/preferences-context";
 import { localize } from "../lib/i18n";
 import { PreAuthPreferences } from "../lib/preauth-preferences";
+import { AnimatedPressable as Pressable } from "../lib/animated-pressable";
 
 type Role = "professional" | "company";
 export default function Welcome() {

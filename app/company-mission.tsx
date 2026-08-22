@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -10,8 +9,9 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
-import { colors, radii } from "../lib/theme";
+import { colors, gradients, radii } from "../lib/theme";
 import { supabase } from "../lib/supabase";
 import { usePreferences } from "../lib/preferences-context";
 import {
@@ -20,6 +20,8 @@ import {
   localize,
   supportedCurrencies,
 } from "../lib/i18n";
+import { AnimatedPressable as Pressable } from "../lib/animated-pressable";
+import { MissionIllustration } from "../lib/mission-illustration";
 type Kind = "transport" | "event";
 const parseDateTime = (date: string, time: string) => {
   const d = new Date(`${date}T${time}:00`);
@@ -27,7 +29,9 @@ const parseDateTime = (date: string, time: string) => {
 };
 const formatDate = (value: string) => {
   const digits = value.replace(/\D/g, "").slice(0, 8);
-  return [digits.slice(0, 4), digits.slice(4, 6), digits.slice(6, 8)].filter(Boolean).join("-");
+  return [digits.slice(0, 4), digits.slice(4, 6), digits.slice(6, 8)]
+    .filter(Boolean)
+    .join("-");
 };
 const formatTime = (value: string) => {
   const digits = value.replace(/\D/g, "").slice(0, 4);
@@ -300,6 +304,12 @@ export default function CompanyMission() {
     );
   return (
     <SafeAreaView style={s.safe}>
+      <LinearGradient
+        colors={
+          kind === "event" ? gradients.eventSoft : gradients.transportSoft
+        }
+        style={StyleSheet.absoluteFill}
+      />
       <ScrollView
         contentContainerStyle={s.container}
         keyboardShouldPersistTaps="handled"
@@ -307,38 +317,46 @@ export default function CompanyMission() {
         <Pressable onPress={() => router.back()}>
           <Text style={s.back}>‹ {prefs.tr("back")}</Text>
         </Pressable>
-        <Text style={s.eyebrow}>
-          {kind === "transport"
-            ? L(
-                "AIR MEDICAL TRANSPORT",
-                "TRANSPORT MÉDICAL AÉRIEN",
-                "TRANSPORTE MÉDICO AÉREO",
-              )
-            : L(
-                "EVENT MEDICAL STAFFING",
-                "MÉDICAL ÉVÉNEMENTIEL",
-                "PERSONAL MÉDICO PARA EVENTOS",
+        <LinearGradient
+          colors={kind === "event" ? gradients.event : gradients.transport}
+          style={s.hero}
+        >
+          <View style={{ flex: 1 }}>
+            <Text style={s.heroEyebrow}>
+              {kind === "transport"
+                ? L(
+                    "AIR MEDICAL TRANSPORT",
+                    "TRANSPORT MÉDICAL AÉRIEN",
+                    "TRANSPORTE MÉDICO AÉREO",
+                  )
+                : L(
+                    "EVENT MEDICAL STAFFING",
+                    "MÉDICAL ÉVÉNEMENTIEL",
+                    "PERSONAL MÉDICO PARA EVENTOS",
+                  )}
+            </Text>
+            <Text style={s.heroTitle}>{prefs.tr("createAssignment")}.</Text>
+            <Text style={s.heroSub}>
+              {kind === "transport"
+                ? L(
+                    "Define airports, schedule and exact professional requirements.",
+                    "Définissez les aéroports, le planning et les exigences professionnelles précises.",
+                    "Define aeropuertos, horario y requisitos profesionales exactos.",
+                  )
+                : L(
+                    "Define the event, location, staffing window and exact requirements.",
+                    "Définissez l’événement, le lieu, le créneau et les exigences précises.",
+                    "Define el evento, ubicación, periodo y requisitos exactos.",
+                  )}{" "}
+              {L(
+                "Never enter patient-identifying medical information.",
+                "Ne saisissez jamais de données médicales permettant d’identifier un patient.",
+                "Nunca introduzcas información médica identificable de pacientes.",
               )}
-        </Text>
-        <Text style={s.title}>{prefs.tr("createAssignment")}.</Text>
-        <Text style={s.sub}>
-          {kind === "transport"
-            ? L(
-                "Define airports, schedule and exact professional requirements.",
-                "Définissez les aéroports, le planning et les exigences professionnelles précises.",
-                "Define aeropuertos, horario y requisitos profesionales exactos.",
-              )
-            : L(
-                "Define the event, location, staffing window and exact requirements.",
-                "Définissez l’événement, le lieu, le créneau et les exigences précises.",
-                "Define el evento, ubicación, periodo y requisitos exactos.",
-              )}{" "}
-          {L(
-            "Never enter patient-identifying medical information.",
-            "Ne saisissez jamais de données médicales permettant d’identifier un patient.",
-            "Nunca introduzcas información médica identificable de pacientes.",
-          )}
-        </Text>
+            </Text>
+          </View>
+          <MissionIllustration kind={kind} size={100} />
+        </LinearGradient>
         {done ? (
           <View style={s.success}>
             <Text style={s.successTitle}>
@@ -761,6 +779,27 @@ const s = StyleSheet.create({
     color: colors.ink,
     marginBottom: 23,
   },
+  hero: {
+    borderRadius: 28,
+    padding: 18,
+    marginBottom: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    overflow: "hidden",
+  },
+  heroEyebrow: {
+    fontSize: 9,
+    fontWeight: "900",
+    letterSpacing: 1.2,
+    color: "#F5FFFC",
+  },
+  heroTitle: {
+    fontSize: 27,
+    fontWeight: "900",
+    color: colors.white,
+    marginTop: 7,
+  },
+  heroSub: { fontSize: 11, lineHeight: 17, color: "#F2FFFC", marginTop: 7 },
   eyebrow: {
     fontSize: 10,
     fontWeight: "900",
