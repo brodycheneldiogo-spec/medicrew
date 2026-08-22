@@ -1,37 +1,42 @@
 # MediCrew production readiness
 
-## Implemented in code
+## Implemented and verified in source
 
-- Two-step account creation: mandatory phone verification followed by mandatory email + password.
-- Password visibility toggle and password recovery flow remain enabled.
-- Professional and company names are stored in the account profile.
-- Professional and company profile photos use the `avatars` Storage bucket.
-- Company onboarding requires legal company information and routes to document-backed verification.
-- Professional verification requires verified identity + professional registration evidence before an admin can mark the professional verified.
-- Company verification requires at least one verified company-registration document before an admin can mark the company verified.
-- Real private document uploads and admin signed-file viewing are enabled.
-- Monthly availability calendar uses real dates for the displayed month, with month navigation and professional timezone storage.
-- Companies can see the selected professional's current-month availability before selecting them.
-- Matching continues to use the mission's actual departure timestamp and professional availability.
-- Mission lifecycle remains server-controlled, including two-sided completion and cancellation rules.
-- Mission chat remains limited to mission members and explicitly prohibits patient-identifying information.
-- Push notification infrastructure remains in place.
-- Direct-payment marketplace model implemented: MediCrew displays compensation but does not collect, hold or transfer mission funds.
-- Obsolete Stripe mobile integration and payment functions are disabled.
-- Privacy policy, data policy and terms were aligned with the direct-payment model.
-- iOS/Android profile-photo permissions are configured for Expo SDK 54.
+- Email/password and Google authentication with password recovery.
+- The designated operations address is the only email automatically assigned the admin role.
+- Admin access is checked against the server-controlled profile role.
+- Professional and organization onboarding, review and access gates.
+- Private verification data and admin review operations.
+- Mission publication, discovery, applications, selection, chat and completion lifecycle.
+- Direct professional compensation: MediCrew does not hold the professional's funds.
+- An 11% MediCrew service fee, accepted at publication and invoiced after completion.
+- Stripe-hosted service-fee invoices and signed webhook reconciliation.
+- Push and transactional-email queues.
+- English, French and Spanish UI preferences.
+- Current legal-acceptance version storage.
+- TypeScript, Expo Doctor and ESLint checks in CI.
 
-## Release blockers that cannot be completed from source control alone
+## Production state checked on 2026-08-22
 
-1. Apply Supabase migrations `0032_final_marketplace_model.sql` and `0033_availability_timezone_security.sql` to the production database.
-2. Configure Supabase Auth phone/SMS provider and email SMTP/provider in the production project.
-3. Configure production `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY` (or current Supabase publishable-key equivalent) in the build environment.
-4. Configure production push credentials / EAS project credentials and verify APNs + FCM delivery on physical devices.
-5. Complete Apple Developer and Google Play Console organization/account setup, signing, store metadata and privacy declarations.
-6. Replace the legal placeholder support contact, controller/legal-entity information, governing law and jurisdiction clauses after legal review.
-7. Perform physical-device acceptance testing for authentication, document upload, push notifications, camera/photo permissions, calendar timezones and mission lifecycle.
-8. Run the production database dry-run/push and verify RLS/storage policies against the live Supabase project.
+- Supabase project is active.
+- Database migrations through 0072 are applied.
+- All exposed application tables use RLS.
+- Anonymous execution was removed from all SECURITY DEFINER functions.
+- Mutable search paths reported by the Security Advisor were fixed.
+- Recovery and password-change email templates exist in supabase/templates.
+- No client-side Stripe SDK or Stripe secret is shipped in the mobile bundle.
 
-## Payment model
+## External release actions
 
-MediCrew intentionally does **not** require Stripe for mission compensation. The app follows a direct marketplace model: the company and professional agree the mission terms and settle the professional compensation directly. MediCrew does not hold or release those funds.
+1. Create and confirm work.medicrew.app@gmail.com once in Supabase Auth, then sign in normally. The database assigns role admin; no MediCrew email-code screen is shown.
+2. Paste the two files in supabase/templates into the matching hosted Supabase email templates and enable the password-changed notification.
+3. Add medicrew://reset-password and medicrew://auth/callback to Supabase Auth redirect URLs.
+4. Configure custom SMTP, sender identity and auth-email rate limits.
+5. Enable leaked-password protection in Supabase Auth.
+6. Configure production Expo/EAS variables and push credentials.
+7. Confirm Stripe server secrets and the stripe-webhook endpoint for service-fee invoices.
+8. Replace legal operator placeholders and obtain appropriate legal review.
+9. Run docs/QA.md on physical iOS and Android devices.
+10. Complete Apple Developer / Google Play signing, privacy declarations and store listings.
+
+Do not call the app publicly launch-ready until these external actions and physical-device QA are complete.
