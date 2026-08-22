@@ -1,52 +1,30 @@
 # MediCrew launch gate
 
-This checklist is the minimum release gate for the production marketplace. A green GitHub CI run is not a substitute for a real-device and payment-provider test.
+## Accounts and security
 
-## Database
-- [ ] Back up production before the first production migration.
-- [ ] Reconcile Supabase migration history before applying `0035_production_consolidation.sql`.
-- [ ] Apply the consolidation migration once and verify its objects with SQL read-only checks.
-- [ ] Confirm RLS is enabled on all user/document/payment tables.
-- [ ] Confirm the admin queue only returns to profiles with `role = admin`.
-- [ ] Confirm the configured admin identity is actually the intended account before launch.
+- [ ] The designated admin can sign in and reaches /admin directly.
+- [ ] A non-admin cannot read admin queues or execute admin actions.
+- [ ] Email confirmation, reset-password deep link and password-changed notification work.
+- [ ] Custom SMTP, leaked-password protection and reasonable Auth rate limits are enabled.
+- [ ] Security Advisor has no unexpected anonymous privileged-function access.
 
-## Marketplace
-- [ ] Company verification is required before mission publication.
-- [ ] Professional verification is required before matching/acceptance.
-- [ ] Event missions require an event country.
-- [ ] Event matching requires professional type + availability + same-country or explicit international availability.
-- [ ] International matching does not imply work/licensing/immigration permission.
-- [ ] Company ↔ professional messaging is restricted to the intended mission lifecycle.
+## Verification and marketplace
 
-## Payments
-- [ ] Configure Stripe server-side secrets only in Supabase Edge Function secrets.
-- [ ] Configure Stripe Connect onboarding for professionals where payouts are required.
-- [ ] Configure and verify the Stripe webhook endpoint.
-- [ ] Test success, decline, cancellation, refund and webhook retry paths in Stripe test mode.
-- [ ] Verify the mission cannot enter `in_progress` before the server records a successful payment.
-- [ ] Verify the professional payout path only releases after the configured completion workflow.
-- [ ] Replace any placeholder platform/company legal information before production payments.
+- [ ] Professional and organization review flows pass with real test accounts.
+- [ ] Unverified accounts cannot access marketplace functions.
+- [ ] Mission discovery, application, selection, chat, cancellation and two-sided completion pass.
+- [ ] Cross-account RLS attempts fail for profiles, documents, missions, chats and invoices.
 
-## Notifications and messaging
-- [ ] Test device push-token registration on iOS.
-- [ ] Test mission match, application, selection, payment, cancellation and message notifications.
-- [ ] Confirm duplicate notification triggers do not exist.
-- [ ] Confirm Realtime/message RLS on real accounts.
+## Billing and notifications
 
-## Legal and privacy
-- [ ] Insert the operator's legal name, address and support contact.
-- [ ] Have counsel review Terms, Privacy Policy and Data Handling Policy for each launch market.
-- [ ] Add the final privacy-policy URL required by App Store Connect.
-- [ ] Do not collect or store unnecessary patient-identifying information.
-- [ ] Define retention/deletion periods for identity and professional documents.
-- [ ] Confirm GDPR/data-subject request handling for EU users.
+- [ ] The 11% service fee shown in the app matches the database and legal terms.
+- [ ] A completed mission produces at most one Stripe-hosted invoice.
+- [ ] Paid, failed and webhook-retry cases reconcile correctly.
+- [ ] Push and transactional email delivery pass on physical devices.
 
-## App Store
-- [ ] Test the production build on a physical iPhone.
-- [ ] Verify notification permission messaging and deep links.
-- [ ] Verify account deletion flow if accounts can be created.
-- [ ] Complete App Store privacy nutrition labels and age rating truthfully.
-- [ ] Confirm payment functionality complies with Apple's current review rules and the business model.
+## Legal and stores
 
-## Important
-MediCrew should not be described as "ready for public launch" until the payment provider, legal operator identity, privacy disclosures and production database migration have been verified in the actual deployment environment.
+- [ ] Operator legal identity, address, support/privacy contacts and governing law are final.
+- [ ] Retention, deletion and data-subject-request procedures are documented.
+- [ ] iOS and Android production builds pass docs/QA.md.
+- [ ] Store privacy disclosures, age rating, screenshots and metadata are complete.
