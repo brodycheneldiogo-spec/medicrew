@@ -15,6 +15,7 @@ WebBrowser.maybeCompleteAuthSession();
 
 const GOOGLE_REDIRECT='medicrew://auth/callback';
 const ADMIN_EMAIL='work.medicrew.app@gmail.com';
+const TEST_EMAIL='brodycheneldiogo@gmail.com';
 const validEmail=(v:string)=>/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
 const strong=(v:string)=>v.length>=8&&/[A-Z]/.test(v)&&/[a-z]/.test(v)&&/\d/.test(v);
 const isAdminEmail=(value?:string|null)=>value?.trim().toLowerCase()===ADMIN_EMAIL;
@@ -23,6 +24,11 @@ async function routeAuthenticated(c:NonNullable<typeof supabase>){const{data,err
 async function recordLegal(c:NonNullable<typeof supabase>,profileId:string){const{error}=await c.from('legal_acceptances').upsert({profile_id:profileId,terms_version:'2.1',privacy_version:'1.2',data_policy_version:'1.1'},{onConflict:'profile_id,terms_version,privacy_version,data_policy_version'});if(error)throw error}
 function oauthReturn(url:string){const parsed=new URL(url);const hash=new URLSearchParams(parsed.hash.startsWith('#')?parsed.hash.slice(1):parsed.hash);return{code:parsed.searchParams.get('code')||hash.get('code'),accessToken:parsed.searchParams.get('access_token')||hash.get('access_token'),refreshToken:parsed.searchParams.get('refresh_token')||hash.get('refresh_token'),error:parsed.searchParams.get('error_description')||hash.get('error_description')||parsed.searchParams.get('error')||hash.get('error')}}
 async function sendEmailCode(c:NonNullable<typeof supabase>,email:string){const{error}=await c.auth.signInWithOtp({email,options:{shouldCreateUser:false}});if(error)throw error}
+async function routeTestAccount(c:NonNullable<typeof supabase>,role:'professional'|'company'){
+ const{data,error}=await c.rpc('switch_designated_test_role',{p_role:role});if(error)throw error;
+ const state=data as {needs_onboarding?:boolean}|null;
+ router.replace(state?.needs_onboarding?('/onboarding?role='+role):role==='company'?'/company':'/home');
+}
 
 export default function Auth(){
  const prefs=usePreferences();
@@ -49,6 +55,7 @@ export default function Auth(){
     await c.from('profiles').update({email:em,role:'admin',preferred_language:prefs.language,preferred_currency:prefs.currency}).eq('id',data.user.id);
     return router.replace('/admin');
    }
+   if(data.session&&data.user&&em===TEST_EMAIL){await recordLegal(c,data.user.id);return await routeTestAccount(c,role)}
    const destination=role==='company'?'/onboarding?role=company':'/onboarding?role=professional';
    if(data.session&&data.user){
     const profile=await c.from('profiles').update({email:em,role,preferred_language:prefs.language,preferred_currency:prefs.currency}).eq('id',data.user.id);if(profile.error)throw profile.error;
@@ -64,6 +71,7 @@ export default function Auth(){
   const c=client();if(!c)return;const em=email.trim().toLowerCase();if(!validEmail(em)||!password)return Alert.alert(L('Email and password required','Email et mot de passe requis','Email y contraseña obligatorios'));
   setLoading(true);const{data,error}=await c.auth.signInWithPassword({email:em,password});setLoading(false);if(error)return Alert.alert(L('Sign in failed','Connexion échouée','Error al iniciar sesión'),error.message);
   if(isAdminEmail(data.user.email))return router.replace('/admin');
+  if(em===TEST_EMAIL){try{return await routeTestAccount(c,role)}catch(e:any){return Alert.alert('MediCrew',e?.message||'Unable to open test account')}}
   if(!data.user.email_confirmed_at)return router.replace({pathname:'/verify-email',params:{email:em,returnTo:'/pending-review',flow:'signup'}} as never);
   const legal=await c.rpc('has_current_legal_acceptance',{p_profile_id:data.user.id});if(!legal.error&&!legal.data)return router.replace({pathname:'/legal-consent',params:{returnTo:'/pending-review'}} as never);await routeAuthenticated(c);
  }
@@ -85,6 +93,7 @@ export default function Auth(){
     await c.from('profiles').update({email:user.email,role:'admin',preferred_language:prefs.language,preferred_currency:prefs.currency}).eq('id',user.id);
     return router.replace('/admin');
    }
+   if(user.email.trim().toLowerCase()===TEST_EMAIL)return await routeTestAccount(c,role);
    let destination='/pending-review';
    if(mode==='signup'){
     const metadata=await c.auth.updateUser({data:{role,signup_complete:true,legal_accepted:true,terms_version:'2.1',privacy_version:'1.2',data_policy_version:'1.1',preferred_language:prefs.language,preferred_currency:prefs.currency}});if(metadata.error)throw metadata.error;
