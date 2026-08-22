@@ -1,8 +1,8 @@
 import { getLocales } from 'expo-localization';
 export type Language='en'|'fr'|'es';
-export type Currency='EUR'|'USD'|'GBP'|'CHF';
+export type Currency='EUR'|'USD';
 export const supportedLanguages=[{code:'en' as Language,label:'English'},{code:'fr' as Language,label:'Français'},{code:'es' as Language,label:'Español'}] as const;
-export const supportedCurrencies=[{code:'EUR' as Currency,label:'Euro',symbol:'€'},{code:'USD' as Currency,label:'US Dollar',symbol:'$'},{code:'GBP' as Currency,label:'British Pound',symbol:'£'},{code:'CHF' as Currency,label:'Swiss Franc',symbol:'CHF'}] as const;
+export const supportedCurrencies=[{code:'EUR' as Currency,label:'Euro',symbol:'€'},{code:'USD' as Currency,label:'US Dollar',symbol:'$'}] as const;
 export const supportedCountries=[['FR','France','EUR'],['ES','Spain','EUR'],['DE','Germany','EUR'],['IT','Italy','EUR'],['PT','Portugal','EUR'],['BE','Belgium','EUR'],['NL','Netherlands','EUR'],['IE','Ireland','EUR'],['AT','Austria','EUR'],['GR','Greece','EUR'],['CY','Cyprus','EUR'],['LU','Luxembourg','EUR'],['FI','Finland','EUR'],['SE','Sweden','SEK'],['DK','Denmark','DKK'],['NO','Norway','NOK'],['CH','Switzerland','CHF'],['GB','United Kingdom','GBP'],['US','United States','USD'],['CA','Canada','CAD'],['AU','Australia','AUD'],['JP','Japan','JPY']] as const;
 export function deviceLanguage():Language{const code=getLocales()[0]?.languageCode||'en';return code==='fr'||code==='es'?code:'en'}
 export function formatMoney(cents:number,currency='EUR',locale?:string){try{return new Intl.NumberFormat(locale||undefined,{style:'currency',currency,maximumFractionDigits:0}).format(cents/100)}catch{return `${(cents/100).toFixed(0)} ${currency}`}}
