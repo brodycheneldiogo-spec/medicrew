@@ -6,6 +6,7 @@
     "orientation": "portrait",
     "scheme": "medicrew",
     "userInterfaceStyle": "light",
+    "icon": "./assets/icon.png",
     "plugins": [
       "expo-router",
       "expo-secure-store",
@@ -29,7 +30,9 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#F7F8F6"
+          "backgroundColor": "#ECF8F3",
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 180
         }
       ],
       [
@@ -62,7 +65,14 @@
     "android": {
       "package": "com.medicrew.app",
       "versionCode": 1,
-      "permissions": ["POST_NOTIFICATIONS"]
+      "permissions": ["POST_NOTIFICATIONS"],
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ECF8F3"
+      }
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
     },
     "experiments": {
       "typedRoutes": true
