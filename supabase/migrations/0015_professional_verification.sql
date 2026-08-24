@@ -166,3 +166,4 @@ begin
 end;
 $$;
 grant execute on function public.admin_verify_skill(uuid,uuid,boolean) to authenticated;
+

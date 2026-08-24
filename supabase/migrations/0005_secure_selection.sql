@@ -73,3 +73,4 @@ drop trigger if exists missions_verified_company_publish on public.missions;
 create trigger missions_verified_company_publish
 before update on public.missions
 for each row execute function public.enforce_verified_company_publish();
+

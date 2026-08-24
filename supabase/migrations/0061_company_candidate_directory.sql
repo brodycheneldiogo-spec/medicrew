@@ -15,3 +15,4 @@ language sql stable security definer set search_path=public as $$
 $$;
 revoke all on function public.company_assignment_candidates(uuid) from public;
 grant execute on function public.company_assignment_candidates(uuid) to authenticated;
+

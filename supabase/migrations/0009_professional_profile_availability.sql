@@ -61,3 +61,4 @@ as $$
   from public.profiles p join public.professionals pr on pr.id=p.id where p.id=auth.uid();
 $$;
 grant execute on function public.get_my_professional_profile() to authenticated;
+

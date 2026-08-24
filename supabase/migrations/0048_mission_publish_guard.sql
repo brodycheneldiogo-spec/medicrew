@@ -17,3 +17,4 @@ revoke all on function public.guard_mission_publication() from public;
 drop trigger if exists missions_publication_guard on public.missions;
 create trigger missions_publication_guard before update of status on public.missions
 for each row execute function public.guard_mission_publication();
+

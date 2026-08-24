@@ -13,3 +13,4 @@ export function PreAuthPreferences(){
 }
 
 const s=StyleSheet.create({wrap:{flexDirection:'row',alignItems:'center',gap:7},pill:{height:34,minWidth:42,paddingHorizontal:11,borderRadius:radii.pill,borderWidth:1,borderColor:colors.line,backgroundColor:colors.white,alignItems:'center',justifyContent:'center'},text:{fontSize:11,fontWeight:'900',color:colors.greenDark,letterSpacing:.4}});
+

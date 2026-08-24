@@ -75,3 +75,4 @@ for each row execute function public.prevent_incomplete_professional_profile();
 
 revoke all on function public.require_complete_professional_credentials() from public;
 revoke all on function public.prevent_incomplete_professional_profile() from public;
+

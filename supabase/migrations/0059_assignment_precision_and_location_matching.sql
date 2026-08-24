@@ -74,3 +74,4 @@ end;
 $$;
 revoke all on function public.publish_network_assignment(uuid) from public;
 grant execute on function public.publish_network_assignment(uuid) to authenticated;
+

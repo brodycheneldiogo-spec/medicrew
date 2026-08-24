@@ -111,3 +111,4 @@ end;
 $$;
 revoke all on function public.confirm_mission_completion(uuid) from public;
 grant execute on function public.confirm_mission_completion(uuid) to authenticated;
+

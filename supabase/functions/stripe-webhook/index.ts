@@ -1,10 +1,10 @@
-import Stripe from 'https://esm.sh/stripe@17.7.0?target=deno';
+import Stripe from 'npm:stripe@22.4.0';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.0';
 
 Deno.serve(async (req) => {
   const signature = req.headers.get('stripe-signature');
   const webhookSecret = Deno.env.get('STRIPE_WEBHOOK_SECRET');
-  const stripeKey = Deno.env.get('STRIPE_SECRET_KEY');
+  const stripeKey = Deno.env.get('STRIPE_RESTRICTED_KEY') || Deno.env.get('STRIPE_SECRET_KEY');
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
   const serviceRole = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
@@ -15,7 +15,7 @@ Deno.serve(async (req) => {
   const body = await req.text();
 
   try {
-    const stripe = new Stripe(stripeKey, { apiVersion: '2026-06-24.dahlia' });
+    const stripe = new Stripe(stripeKey, { apiVersion: '2026-07-29.dahlia' });
     const event = await stripe.webhooks.constructEventAsync(body, signature, webhookSecret);
     const admin = createClient(supabaseUrl, serviceRole);
 
@@ -48,6 +48,41 @@ Deno.serve(async (req) => {
       'invoice.voided',
       'invoice.marked_uncollectible',
     ]);
+
+    const checkoutEvents = new Set([
+      'checkout.session.completed',
+      'checkout.session.async_payment_succeeded',
+      'checkout.session.async_payment_failed',
+    ]);
+
+    if (checkoutEvents.has(event.type)) {
+      const session = event.data.object as Stripe.Checkout.Session;
+      const missionId = session.metadata?.medicrew_mission_id;
+      if (missionId) {
+        const paid = event.type !== 'checkout.session.async_payment_failed' && session.payment_status === 'paid';
+        const { error: paymentError } = await admin.from('mission_service_fee_payments').update({
+          status: paid ? 'paid' : 'failed',
+          stripe_payment_intent_id: typeof session.payment_intent === 'string' ? session.payment_intent : session.payment_intent?.id || null,
+          paid_at: paid ? new Date().toISOString() : null,
+          updated_at: new Date().toISOString(),
+        }).eq('mission_id', missionId);
+        if (paymentError) throw paymentError;
+        if (paid) {
+          const { data: mission, error: missionError } = await admin.from('missions').update({ status: 'confirmed', updated_at: new Date().toISOString() }).eq('id', missionId).eq('status', 'professional_selected').select('company_id').maybeSingle();
+          if (missionError) throw missionError;
+          await admin.from('mission_assignments').update({ confirmed_at: new Date().toISOString() }).eq('mission_id', missionId);
+          if (mission) {
+            const { data: assignment } = await admin.from('mission_assignments').select('professional_id').eq('mission_id', missionId).maybeSingle();
+            const rows = [
+              { profile_id: mission.company_id, title: 'Service fee paid', body: 'Stripe confirmed the MediCrew service fee. The mission is now confirmed.', type: 'service_fee_paid', data: { mission_id: missionId, email: true } },
+              ...(assignment ? [{ profile_id: assignment.professional_id, title: 'Mission confirmed', body: 'The company paid the MediCrew service fee. Your mission is confirmed.', type: 'mission_confirmed', data: { mission_id: missionId, email: true } }] : []),
+            ];
+            const { error: notificationError } = await admin.from('notifications').insert(rows);
+            if (notificationError) throw notificationError;
+          }
+        }
+      }
+    }
 
     if (invoiceEvents.has(event.type)) {
       const invoice = event.data.object as Stripe.Invoice;

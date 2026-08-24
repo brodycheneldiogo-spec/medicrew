@@ -101,3 +101,4 @@ grant execute on function public.company_search_professionals(public.professiona
 
 comment on function public.company_search_professionals is
   'Company-only professional directory. Exposes operational profile fields and passport verification state, never passport numbers or document storage paths.';
+

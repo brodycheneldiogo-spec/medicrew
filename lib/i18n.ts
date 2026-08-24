@@ -15,3 +15,4 @@ const messages={
 } as const;
 export type TranslationKey=keyof typeof messages.en;
 export function t(language:Language,key:TranslationKey){return messages[language]?.[key]||messages.en[key]}
+

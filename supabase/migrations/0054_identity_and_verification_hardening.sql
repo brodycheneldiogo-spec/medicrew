@@ -168,3 +168,4 @@ $$;
 
 revoke all on function public.professional_has_current_launch_evidence(uuid) from public;
 grant execute on function public.professional_has_current_launch_evidence(uuid) to authenticated;
+

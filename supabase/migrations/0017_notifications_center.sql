@@ -35,3 +35,4 @@ drop policy if exists notifications_select_own on public.notifications;
 drop policy if exists notifications_update_own on public.notifications;
 create policy notifications_select_own on public.notifications for select to authenticated using (profile_id=auth.uid());
 create policy notifications_update_own on public.notifications for update to authenticated using (profile_id=auth.uid()) with check (profile_id=auth.uid());
+

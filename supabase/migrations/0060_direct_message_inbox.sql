@@ -26,3 +26,4 @@ begin
 end; $$;
 revoke all on function public.mark_direct_conversation_read(uuid) from public;
 grant execute on function public.mark_direct_conversation_read(uuid) to authenticated;
+

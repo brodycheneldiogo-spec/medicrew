@@ -135,3 +135,4 @@ begin
 end;$$;
 revoke all on function public.start_direct_conversation(uuid) from public;
 grant execute on function public.start_direct_conversation(uuid) to authenticated;
+

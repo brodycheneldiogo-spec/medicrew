@@ -113,3 +113,4 @@ drop trigger if exists company_documents_protect_verification on public.company_
 create trigger company_documents_protect_verification
 before update on public.company_verification_documents
 for each row execute function public.protect_company_document_verification_fields();
+

@@ -69,3 +69,4 @@ $$;
 
 grant execute on function public.admin_list_pending_documents() to authenticated;
 grant execute on function public.admin_set_document_status(uuid,public.document_status,text) to authenticated;
+

@@ -84,3 +84,4 @@ alter table public.missions alter column platform_fee_cents set default 0;
 update public.missions set platform_fee_cents=0 where platform_fee_cents<>0;
 create or replace function public.mission_payment_model() returns jsonb language sql immutable as $$ select jsonb_build_object('provider','direct','platform_collects_mission_funds',false,'professional_fee_displayed',true,'message','Mission compensation is agreed and paid directly between the company and the professional. MediCrew does not hold, release or transfer mission compensation.') $$;
 revoke all on function public.mission_payment_model() from public; grant execute on function public.mission_payment_model() to authenticated;
+

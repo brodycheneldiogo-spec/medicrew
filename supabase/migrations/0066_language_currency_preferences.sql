@@ -13,3 +13,4 @@ alter table public.missions add constraint missions_compensation_currency_check 
 
 comment on column public.profiles.preferred_currency is 'Display preference only. It never changes contractual mission amounts.';
 comment on column public.missions.compensation_currency is 'Original contractual currency for professional compensation. MediCrew V1 supports EUR and USD.';
+

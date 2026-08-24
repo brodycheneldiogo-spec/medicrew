@@ -57,3 +57,4 @@ drop trigger if exists notifications_enqueue_email on public.notifications;
 create trigger notifications_enqueue_email
 after insert on public.notifications
 for each row execute function public.enqueue_transactional_email();
+

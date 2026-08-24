@@ -130,3 +130,4 @@ after update of email_confirmed_at on auth.users
 for each row execute function public.capture_email_signup_legal_acceptance();
 
 comment on column public.profiles.phone is 'Optional contact field. MediCrew authentication uses email/password or supported OAuth providers, not SMS OTP.';
+

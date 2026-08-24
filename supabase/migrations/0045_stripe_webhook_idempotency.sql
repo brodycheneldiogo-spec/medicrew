@@ -6,3 +6,4 @@ create table if not exists public.stripe_webhook_events (
   error_message text
 );
 revoke all on public.stripe_webhook_events from anon,authenticated;
+

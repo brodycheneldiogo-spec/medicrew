@@ -262,3 +262,4 @@ where lower(coalesce(email,''))='ethanbrody@gmail.com'
 comment on table public.mission_payments is 'Server-controlled Stripe payment ledger. Never store Stripe secret keys in the mobile client.';
 comment on column public.missions.event_country is 'Country where the event assignment takes place.';
 comment on column public.professionals.country_of_operation is 'Primary country where the professional normally operates.';
+

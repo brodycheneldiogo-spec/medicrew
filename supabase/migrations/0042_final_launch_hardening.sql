@@ -143,3 +143,4 @@ create policy mission_payments_professional_read on public.mission_payments for 
 
 -- Mark the key confirmation/payment notifications as transactional email candidates.
 comment on table public.notification_email_queue is 'Transactional email queue. Only notifications with data.email=true are sent.';
+

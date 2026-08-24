@@ -306,3 +306,4 @@ insert into public.skills (slug,name,category) values
 ('neurocritical','Neurocritical care','Clinical'),
 ('cardiac-critical-care','Cardiac critical care','Clinical')
 on conflict (slug) do nothing;
+

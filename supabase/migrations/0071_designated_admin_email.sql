@@ -25,3 +25,4 @@ for each row execute function public.bootstrap_designated_admin();
 update public.profiles
 set role='admin'
 where lower(coalesce(email,''))='work.medicrew.app@gmail.com';
+

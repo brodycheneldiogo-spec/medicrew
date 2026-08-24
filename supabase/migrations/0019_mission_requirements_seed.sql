@@ -20,3 +20,4 @@ end;
 $$;
 revoke all on function public.set_mission_requirement(uuid,text,boolean,public.experience_level,numeric) from public;
 grant execute on function public.set_mission_requirement(uuid,text,boolean,public.experience_level,numeric) to authenticated;
+

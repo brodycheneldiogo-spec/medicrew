@@ -49,3 +49,4 @@ begin
 end;
 $$;
 grant execute on function public.replace_my_languages(jsonb) to authenticated;
+

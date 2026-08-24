@@ -21,3 +21,4 @@ end;
 $$;
 revoke all on function public.enqueue_transactional_email() from public;
 grant execute on function public.enqueue_transactional_email() to authenticated;
+

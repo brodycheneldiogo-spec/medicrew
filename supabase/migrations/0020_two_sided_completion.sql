@@ -149,3 +149,4 @@ $$;
 
 revoke all on function public.advance_mission_status(uuid, public.mission_status) from public;
 grant execute on function public.advance_mission_status(uuid, public.mission_status) to authenticated;
+

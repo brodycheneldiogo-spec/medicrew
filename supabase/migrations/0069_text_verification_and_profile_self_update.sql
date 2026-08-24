@@ -84,3 +84,4 @@ end;
 $$;
 revoke all on function public.submit_my_account_for_review() from public;
 grant execute on function public.submit_my_account_for_review() to authenticated;
+

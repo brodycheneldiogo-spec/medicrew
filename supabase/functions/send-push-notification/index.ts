@@ -1,2 +1,8 @@
-import { createClient } from 'npm:@supabase/supabase-js@2';
-Deno.serve(async(req)=>{if(req.method!=='POST')return new Response('Method not allowed',{status:405});try{const expected=Deno.env.get('PUSH_DISPATCH_SECRET');if(!expected||req.headers.get('x-push-dispatch-secret')!==expected)return new Response('Unauthorized',{status:401});const payload=await req.json();const profileId=payload.profile_id||payload.profileId;const title=payload.title;const body=payload.body;const data=payload.data||{};const queueId=payload.id||null;if(!profileId||!title||!body)throw new Error('profile_id, title and body are required');const keys=JSON.parse(Deno.env.get('SUPABASE_SECRET_KEYS')||'{}');const serviceKey=keys.default||Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');if(!serviceKey)throw new Error('Supabase server key is not configured');const supabase=createClient(Deno.env.get('SUPABASE_URL')!,serviceKey);const{data:tokens,error}=await supabase.from('push_tokens').select('expo_push_token').eq('profile_id',profileId);if(error)throw error;const messages=(tokens||[]).map(row=>({to:row.expo_push_token,sound:'default',title,body,data,priority:'high'}));if(!messages.length)return Response.json({sent:0});const response=await fetch('https://exp.host/--/api/v2/push/send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(messages)});const result=await response.json();if(queueId)await supabase.from('notification_push_queue').update({delivered_at:new Date().toISOString()}).eq('id',queueId);return Response.json({sent:messages.length,result})}catch(error){return Response.json({error:error instanceof Error?error.message:'Push delivery failed'},{status:400})}});
+Deno.serve(() =>
+  Response.json(
+    {
+      error: "Push notifications are disabled. MediCrew uses transactional email only.",
+    },
+    { status: 410 },
+  ),
+);

@@ -178,3 +178,4 @@ begin
 end; $$;
 revoke all on function public.set_my_available_days(date[]) from public;
 grant execute on function public.set_my_available_days(date[]) to authenticated;
+

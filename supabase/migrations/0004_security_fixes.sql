@@ -52,3 +52,4 @@ with check (
   exists (select 1 from public.missions m where m.id = mission_id and m.company_id = auth.uid())
   and status in ('pending','accepted','declined')
 );
+

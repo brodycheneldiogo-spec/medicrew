@@ -3,13 +3,10 @@
     "name": "MediCrew",
     "slug": "medicrew",
     "version": "1.0.0",
-    "orientation": "portrait",
-    "scheme": "medicrew",
     "userInterfaceStyle": "light",
     "icon": "./assets/icon.png",
     "plugins": [
       "expo-router",
-      "expo-secure-store",
       "expo-document-picker",
       [
         "expo-image-picker",
@@ -20,59 +17,17 @@
         }
       ],
       [
-        "expo-notifications",
-        {
-          "color": "#18B889",
-          "defaultChannel": "missions",
-          "enableBackgroundRemoteNotifications": true
-        }
-      ],
-      [
         "expo-splash-screen",
         {
           "backgroundColor": "#ECF8F3",
           "image": "./assets/splash-icon.png",
           "imageWidth": 180
         }
-      ],
-      [
-        "expo-build-properties",
-        {
-          "ios": {
-            "deploymentTarget": "15.1",
-            "privacyManifestAggregationEnabled": true
-          },
-          "android": {
-            "minSdkVersion": 24,
-            "targetSdkVersion": 36,
-            "compileSdkVersion": 36
-          }
-        }
       ]
     ],
-    "ios": {
-      "supportsTablet": true,
-      "bundleIdentifier": "com.medicrew.app",
-      "buildNumber": "1",
-      "requireFullScreen": false,
-      "infoPlist": {
-        "CFBundleAllowMixedLocalizations": true,
-        "CFBundleLocalizations": ["en", "fr", "es", "de", "it", "pt"],
-        "UIBackgroundModes": ["remote-notification"],
-        "ITSAppUsesNonExemptEncryption": false
-      }
-    },
-    "android": {
-      "package": "com.medicrew.app",
-      "versionCode": 1,
-      "permissions": ["POST_NOTIFICATIONS"],
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ECF8F3"
-      }
-    },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "output": "static"
     },
     "experiments": {
       "typedRoutes": true

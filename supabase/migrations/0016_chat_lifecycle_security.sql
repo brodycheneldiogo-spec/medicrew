@@ -32,3 +32,4 @@ begin
  update public.messages set read_at=now() where conversation_id=p_conversation_id and sender_id<>auth.uid() and read_at is null;
 end; $$;
 grant execute on function public.mark_conversation_read(uuid) to authenticated;
+

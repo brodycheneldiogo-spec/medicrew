@@ -136,3 +136,4 @@ $$;
 
 revoke all on function public.replace_my_skills_v2(jsonb) from public;
 grant execute on function public.replace_my_skills_v2(jsonb) to authenticated;
+

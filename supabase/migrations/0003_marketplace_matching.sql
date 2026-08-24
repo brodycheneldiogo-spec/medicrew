@@ -145,3 +145,4 @@ for select using (professional_id = auth.uid());
 create policy "assignment company write" on public.mission_assignments
 for all using (exists (select 1 from public.missions m where m.id = mission_id and m.company_id = auth.uid()))
 with check (exists (select 1 from public.missions m where m.id = mission_id and m.company_id = auth.uid()));
+

@@ -33,3 +33,4 @@ end;
 $$;
 revoke all on function public.select_mission_professional(uuid,uuid) from public;
 grant execute on function public.select_mission_professional(uuid,uuid) to authenticated;
+

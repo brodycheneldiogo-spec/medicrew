@@ -53,3 +53,4 @@ create policy "users read own notifications" on public.notifications
 for select using (profile_id=auth.uid());
 create policy "users update own notifications" on public.notifications
 for update using (profile_id=auth.uid()) with check (profile_id=auth.uid());
+

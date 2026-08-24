@@ -77,3 +77,4 @@ end;
 $$;
 
 grant execute on function public.replace_my_skills(jsonb) to authenticated;
+

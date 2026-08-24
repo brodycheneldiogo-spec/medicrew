@@ -61,3 +61,4 @@ as $$
 $$;
 revoke all on function public.company_professional_month_availability(uuid[],date) from public;
 grant execute on function public.company_professional_month_availability(uuid[],date) to authenticated;
+

@@ -54,3 +54,4 @@ create policy "admins full conversation members" on public.conversation_members 
 create policy "admins full messages" on public.messages for all using (public.is_admin()) with check (public.is_admin());
 create policy "admins full notifications" on public.notifications for all using (public.is_admin()) with check (public.is_admin());
 create policy "admins full audit logs" on public.audit_logs for all using (public.is_admin()) with check (public.is_admin());
+

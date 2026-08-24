@@ -35,3 +35,4 @@ begin
 end; $$;
 
 grant execute on function public.admin_suspend_profile(uuid,text) to authenticated;
+

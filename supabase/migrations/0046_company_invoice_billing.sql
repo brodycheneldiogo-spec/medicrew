@@ -122,3 +122,4 @@ revoke all on function public.advance_mission_status(uuid,public.mission_status)
 grant execute on function public.advance_mission_status(uuid,public.mission_status) to authenticated;
 
 comment on table public.mission_invoices is 'MediCrew service-fee invoices. Professional compensation is paid directly by the company outside MediCrew.';
+

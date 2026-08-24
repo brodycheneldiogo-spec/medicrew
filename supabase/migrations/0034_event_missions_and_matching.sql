@@ -95,3 +95,4 @@ for select using (
 
 comment on column public.missions.event_country is 'Country where the event/assignment takes place; ISO-like country name/code supplied by the company.';
 comment on column public.professionals.country_of_operation is 'Primary country where the professional is normally based/operates.';
+

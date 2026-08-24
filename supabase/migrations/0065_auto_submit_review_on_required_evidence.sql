@@ -27,3 +27,4 @@ begin
 end;$$;
 drop trigger if exists company_auto_submit_review on public.company_verification_documents;
 create trigger company_auto_submit_review after insert on public.company_verification_documents for each row execute function public.auto_submit_company_review();
+

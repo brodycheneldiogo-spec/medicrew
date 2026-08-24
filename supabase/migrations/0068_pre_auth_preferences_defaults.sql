@@ -26,3 +26,4 @@ $$;
 
 comment on column public.profiles.preferred_language is 'UI language. Defaults to English; users may select English, French, or Spanish before signup or later in Settings.';
 comment on column public.profiles.preferred_currency is 'Display currency only. Defaults to USD; users may select USD or EUR before signup or later in Settings.';
+

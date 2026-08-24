@@ -6,3 +6,4 @@ alter table public.notification_push_queue enable row level security;
 create or replace function public.enqueue_push_for_notification() returns trigger language plpgsql security definer set search_path=public as $$ begin insert into public.notification_push_queue(profile_id,title,body,data) values(new.profile_id,new.title,new.body,coalesce(new.data,'{}'::jsonb));return new;end; $$;
 drop trigger if exists notification_push_queue_trigger on public.notifications;
 create trigger notification_push_queue_trigger after insert on public.notifications for each row execute function public.enqueue_push_for_notification();
+

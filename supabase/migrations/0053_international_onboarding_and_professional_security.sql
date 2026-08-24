@@ -55,3 +55,4 @@ drop trigger if exists professionals_identity_change_requires_review on public.p
 create trigger professionals_identity_change_requires_review
 before insert or update on public.professionals
 for each row execute function public.force_professional_pending_on_identity_change();
+

@@ -33,3 +33,4 @@ begin
  )x;return jsonb_build_object('documents',result);
 end;$$;
 revoke all on function public.admin_company_verification_queue() from public;grant execute on function public.admin_company_verification_queue() to authenticated;
+
