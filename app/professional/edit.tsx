@@ -1,11 +1,445 @@
-import { useEffect,useState } from 'react';
-import { ActivityIndicator,Alert,Pressable,ScrollView,StyleSheet,Text,TextInput,View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
-import { colors,radii } from '../../lib/theme';
-import { supabase } from '../../lib/supabase';
-import { usePreferences } from '../../lib/preferences-context';
-import { localize } from '../../lib/i18n';
-export default function EditProfessionalProfile(){const prefs=usePreferences();const L=(en:string,fr:string,es:string)=>localize(prefs.language,en,fr,es);const[loading,setLoading]=useState(true),[saving,setSaving]=useState(false),[preview,setPreview]=useState(false),[form,setForm]=useState<Record<string,string>>({first_name:'',last_name:'',headline:'',bio:'',city:'',country:'',base_city:'',base_airport_code:'',nationality:''});const[status,setStatus]=useState('pending');useEffect(()=>{void load()},[]);async function load(){if(!supabase){setLoading(false);return}const{data:{user}}=await supabase.auth.getUser();if(!user){if(__DEV__)setPreview(true);setLoading(false);return}const[{data:p,error:pe},{data:pro,error:re}]=await Promise.all([supabase.from('profiles').select('first_name,last_name,headline,bio,city,country').eq('id',user.id).single(),supabase.from('professionals').select('base_city,base_airport_code,nationality,verification_status').eq('id',user.id).single()]);if(pe||re){Alert.alert(L('Profile unavailable','Profil indisponible','Perfil no disponible'),(pe||re)?.message||'Unknown error');router.back();return}setForm({first_name:p.first_name||'',last_name:p.last_name||'',headline:p.headline||'',bio:p.bio||'',city:p.city||'',country:p.country||'',base_city:pro.base_city||'',base_airport_code:pro.base_airport_code||'',nationality:pro.nationality||''});setStatus(pro.verification_status||'pending');setLoading(false)}const set=(k:string,v:string)=>setForm(x=>({...x,[k]:v}));async function save(){if(!supabase||preview)return;setSaving(true);try{const{data:{user}}=await supabase.auth.getUser();if(!user)throw new Error(L('Session expired','Session expirée','Sesión caducada'));if(!form.first_name.trim()||!form.last_name.trim())throw new Error(L('First and last name are required','Prénom et nom requis','Nombre y apellidos obligatorios'));if(!/^[A-Za-z]{3}$/.test(form.base_airport_code.trim()))throw new Error(L('Use a valid 3-letter IATA base airport code','Utilisez un code IATA valide à 3 lettres','Usa un código IATA válido de 3 letras'));if(!form.base_city.trim()||!form.country.trim())throw new Error(L('Base city and country are required','Ville et pays de base requis','Ciudad y país base obligatorios'));const[a,b]=await Promise.all([supabase.from('profiles').update({first_name:form.first_name.trim(),last_name:form.last_name.trim(),headline:form.headline.trim()||null,bio:form.bio.trim()||null,city:form.base_city.trim(),country:form.country.trim()}).eq('id',user.id),supabase.from('professionals').update({base_city:form.base_city.trim(),base_airport_code:form.base_airport_code.trim().toUpperCase(),country_of_operation:form.country.trim(),nationality:form.nationality.trim()||null}).eq('id',user.id)]);if(a.error||b.error)throw a.error||b.error;Alert.alert(L('Saved','Enregistré','Guardado'),L('Your public profile and operating base were updated.','Votre profil public et votre base ont été mis à jour.','Tu perfil público y base operativa se actualizaron.'),[{text:L('Done','Terminé','Listo'),onPress:()=>router.back()}])}catch(e:any){Alert.alert(L('Save failed','Échec de l’enregistrement','Error al guardar'),e?.message||L('Unable to save','Impossible d’enregistrer','No se pudo guardar'))}finally{setSaving(false)}}if(loading)return <SafeAreaView style={s.safe}><ActivityIndicator style={{marginTop:80}} color={colors.pro} size="large"/></SafeAreaView>;return <SafeAreaView style={s.safe}><ScrollView contentContainerStyle={s.container} keyboardShouldPersistTaps="handled"><Pressable onPress={()=>router.back()}><Text style={s.back}>‹ {prefs.tr('profile')}</Text></Pressable><Text style={s.eyebrow}>{L('PUBLIC PROFILE','PROFIL PUBLIC','PERFIL PÚBLICO')}</Text><Text style={s.title}>{L('What the network sees.','Ce que voit le réseau.','Lo que ve la red.')}</Text><Text style={s.sub}>{L('Your operating base drives recommendations. Regulated credentials cannot be edited here.','Votre base détermine les recommandations. Les qualifications réglementées ne peuvent pas être modifiées ici.','Tu base determina las recomendaciones. Las credenciales reguladas no se editan aquí.')}</Text>{preview?<View style={s.info}><Text style={s.infoText}>Development account: real profile editing requires authentication.</Text></View>:null}<Section title={L('Public identity','Identité publique','Identidad pública')}><Field label={L('First name','Prénom','Nombre')} value={form.first_name} set={v=>set('first_name',v)}/><Field label={L('Last name','Nom','Apellidos')} value={form.last_name} set={v=>set('last_name',v)}/><Field label={L('Headline','Titre public','Titular')} value={form.headline} set={v=>set('headline',v)}/><Field label={L('About','À propos','Acerca de')} value={form.bio} set={v=>set('bio',v)} multiline/></Section><Section title={L('Operating base','Base opérationnelle','Base operativa')}><Field label={L('Base city','Ville de base','Ciudad base')} value={form.base_city} set={v=>set('base_city',v)}/><Field label={L('Country','Pays','País')} value={form.country} set={v=>set('country',v)}/><Field label={L('Base airport IATA','Aéroport de base IATA','Aeropuerto base IATA')} value={form.base_airport_code} set={v=>set('base_airport_code',v)} cap="characters"/><Field label={L('Nationality','Nationalité','Nacionalidad')} value={form.nationality} set={v=>set('nationality',v)}/><Text style={s.help}>{L('Air missions start from this airport; event recommendations use your base city/country.','Les missions aériennes partent de cet aéroport ; les événements utilisent votre ville/pays de base.','Las misiones aéreas parten de este aeropuerto; los eventos usan tu ciudad/país base.')}</Text></Section><Section title={L('Regulated identity','Identité réglementée','Identidad regulada')}><Read label={L('Verification','Vérification','Verificación')} value={status}/><Read label={L('Profession / specialty / licence','Profession / spécialité / licence','Profesión / especialidad / licencia')} value={L('Managed through MediCrew verification','Géré via la vérification MediCrew','Gestionado mediante verificación MediCrew')}/></Section><Pressable disabled={saving||preview} onPress={save} style={[s.button,(saving||preview)&&{opacity:.45}]}><Text style={s.buttonText}>{saving?L('Saving…','Enregistrement…','Guardando…'):L('Save profile','Enregistrer le profil','Guardar perfil')}</Text></Pressable></ScrollView></SafeAreaView>}
-function Section({title,children}:{title:string;children:React.ReactNode}){return <View style={s.section}><Text style={s.sectionTitle}>{title}</Text>{children}</View>}function Field({label,value,set,multiline=false,cap='words'}:{label:string;value:string;set:(v:string)=>void;multiline?:boolean;cap?:any}){return <View style={s.field}><Text style={s.label}>{label}</Text><TextInput value={value} onChangeText={set} autoCapitalize={cap} multiline={multiline} style={[s.input,multiline&&s.multi]}/></View>}function Read({label,value}:{label:string;value:string}){return <View style={s.read}><Text style={s.label}>{label}</Text><Text style={s.readValue}>{value}</Text></View>}
-const s=StyleSheet.create({safe:{flex:1,backgroundColor:colors.paper},container:{padding:22,paddingBottom:45},back:{fontSize:15,fontWeight:'800',color:colors.ink,marginBottom:23},eyebrow:{fontSize:10,fontWeight:'900',letterSpacing:1.4,color:colors.pro},title:{fontSize:34,fontWeight:'900',color:colors.ink,marginTop:6},sub:{fontSize:13,lineHeight:20,color:colors.muted,marginTop:7,marginBottom:17},section:{padding:17,borderRadius:radii.lg,borderWidth:1,borderColor:colors.line,backgroundColor:colors.white,marginBottom:11},sectionTitle:{fontSize:16,fontWeight:'900',color:colors.ink,marginBottom:12},field:{marginBottom:12},label:{fontSize:11,fontWeight:'800',color:colors.muted,marginBottom:6},input:{minHeight:48,borderWidth:1,borderColor:colors.line,borderRadius:12,paddingHorizontal:12,backgroundColor:colors.paper,color:colors.ink},multi:{height:105,textAlignVertical:'top',paddingTop:12},help:{fontSize:11,lineHeight:17,color:colors.muted},read:{paddingVertical:8,borderBottomWidth:1,borderBottomColor:colors.line},readValue:{fontSize:12,fontWeight:'800',color:colors.ink},button:{height:55,borderRadius:radii.md,backgroundColor:colors.proDark,alignItems:'center',justifyContent:'center'},buttonText:{fontSize:14,fontWeight:'900',color:colors.white},info:{padding:12,borderRadius:radii.md,backgroundColor:colors.proSoft,marginBottom:12},infoText:{fontSize:11,color:colors.proDark}});
+import { useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { router } from "expo-router";
+import { colors, radii } from "../../lib/theme";
+import { supabase } from "../../lib/supabase";
+import { usePreferences } from "../../lib/preferences-context";
+import { localize } from "../../lib/i18n";
+export default function EditProfessionalProfile() {
+  const prefs = usePreferences();
+  const L = (en: string, fr: string, es: string) =>
+    localize(prefs.language, en, fr, es);
+  const [loading, setLoading] = useState(true),
+    [saving, setSaving] = useState(false),
+    [preview, setPreview] = useState(false),
+    [form, setForm] = useState<Record<string, string>>({
+      first_name: "",
+      last_name: "",
+      headline: "",
+      bio: "",
+      phone: "",
+      city: "",
+      country: "",
+      base_city: "",
+      base_airport_code: "",
+      nationality: "",
+    });
+  const [status, setStatus] = useState("pending");
+  useEffect(() => {
+    void load();
+  }, []);
+  async function load() {
+    if (!supabase) {
+      setLoading(false);
+      return;
+    }
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      if (__DEV__) setPreview(true);
+      setLoading(false);
+      return;
+    }
+    const [{ data: p, error: pe }, { data: pro, error: re }] =
+      await Promise.all([
+        supabase
+          .from("profiles")
+          .select("first_name,last_name,headline,bio,phone,city,country")
+          .eq("id", user.id)
+          .single(),
+        supabase
+          .from("professionals")
+          .select("base_city,base_airport_code,nationality,verification_status")
+          .eq("id", user.id)
+          .single(),
+      ]);
+    if (pe || re) {
+      Alert.alert(
+        L("Profile unavailable", "Profil indisponible", "Perfil no disponible"),
+        (pe || re)?.message || "Unknown error",
+      );
+      router.back();
+      return;
+    }
+    setForm({
+      first_name: p.first_name || "",
+      last_name: p.last_name || "",
+      headline: p.headline || "",
+      bio: p.bio || "",
+      phone: p.phone || "",
+      city: p.city || "",
+      country: p.country || "",
+      base_city: pro.base_city || "",
+      base_airport_code: pro.base_airport_code || "",
+      nationality: pro.nationality || "",
+    });
+    setStatus(pro.verification_status || "pending");
+    setLoading(false);
+  }
+  const set = (k: string, v: string) => setForm((x) => ({ ...x, [k]: v }));
+  async function save() {
+    if (!supabase || preview) return;
+    setSaving(true);
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user)
+        throw new Error(
+          L("Session expired", "Session expirée", "Sesión caducada"),
+        );
+      if (!form.first_name.trim() || !form.last_name.trim())
+        throw new Error(
+          L(
+            "First and last name are required",
+            "Prénom et nom requis",
+            "Nombre y apellidos obligatorios",
+          ),
+        );
+      if (!/^[A-Za-z]{3}$/.test(form.base_airport_code.trim()))
+        throw new Error(
+          L(
+            "Use a valid 3-letter IATA base airport code",
+            "Utilisez un code IATA valide à 3 lettres",
+            "Usa un código IATA válido de 3 letras",
+          ),
+        );
+      if (!form.base_city.trim() || !form.country.trim())
+        throw new Error(
+          L(
+            "Base city and country are required",
+            "Ville et pays de base requis",
+            "Ciudad y país base obligatorios",
+          ),
+        );
+      const [a, b] = await Promise.all([
+        supabase
+          .from("profiles")
+          .update({
+            first_name: form.first_name.trim(),
+            last_name: form.last_name.trim(),
+            headline: form.headline.trim() || null,
+            bio: form.bio.trim() || null,
+            phone: form.phone.trim() || null,
+            city: form.base_city.trim(),
+            country: form.country.trim(),
+          })
+          .eq("id", user.id),
+        supabase
+          .from("professionals")
+          .update({
+            base_city: form.base_city.trim(),
+            base_airport_code: form.base_airport_code.trim().toUpperCase(),
+            country_of_operation: form.country.trim(),
+            nationality: form.nationality.trim() || null,
+          })
+          .eq("id", user.id),
+      ]);
+      if (a.error || b.error) throw a.error || b.error;
+      Alert.alert(
+        L("Saved", "Enregistré", "Guardado"),
+        L(
+          "Your public profile and operating base were updated.",
+          "Votre profil public et votre base ont été mis à jour.",
+          "Tu perfil público y base operativa se actualizaron.",
+        ),
+        [{ text: L("Done", "Terminé", "Listo"), onPress: () => router.back() }],
+      );
+    } catch (e: any) {
+      Alert.alert(
+        L("Save failed", "Échec de l’enregistrement", "Error al guardar"),
+        e?.message ||
+          L("Unable to save", "Impossible d’enregistrer", "No se pudo guardar"),
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+  if (loading)
+    return (
+      <SafeAreaView style={s.safe}>
+        <ActivityIndicator
+          style={{ marginTop: 80 }}
+          color={colors.pro}
+          size="large"
+        />
+      </SafeAreaView>
+    );
+  return (
+    <SafeAreaView style={s.safe}>
+      <ScrollView
+        contentContainerStyle={s.container}
+        keyboardShouldPersistTaps="handled"
+      >
+        <Pressable onPress={() => router.back()}>
+          <Text style={s.back}>‹ {prefs.tr("profile")}</Text>
+        </Pressable>
+        <Text style={s.eyebrow}>
+          {L("PUBLIC PROFILE", "PROFIL PUBLIC", "PERFIL PÚBLICO")}
+        </Text>
+        <Text style={s.title}>
+          {L(
+            "What the network sees.",
+            "Ce que voit le réseau.",
+            "Lo que ve la red.",
+          )}
+        </Text>
+        <Text style={s.sub}>
+          {L(
+            "Your operating base drives recommendations. Regulated credentials cannot be edited here.",
+            "Votre base détermine les recommandations. Les qualifications réglementées ne peuvent pas être modifiées ici.",
+            "Tu base determina las recomendaciones. Las credenciales reguladas no se editan aquí.",
+          )}
+        </Text>
+        {preview ? (
+          <View style={s.info}>
+            <Text style={s.infoText}>
+              Development account: real profile editing requires authentication.
+            </Text>
+          </View>
+        ) : null}
+        <Section
+          title={L("Public identity", "Identité publique", "Identidad pública")}
+        >
+          <Field
+            label={L("First name", "Prénom", "Nombre")}
+            value={form.first_name}
+            set={(v) => set("first_name", v)}
+          />
+          <Field
+            label={L("Last name", "Nom", "Apellidos")}
+            value={form.last_name}
+            set={(v) => set("last_name", v)}
+          />
+          <Field
+            label={L("Headline", "Titre public", "Titular")}
+            value={form.headline}
+            set={(v) => set("headline", v)}
+          />
+          <Field
+            label={L("About", "À propos", "Acerca de")}
+            value={form.bio}
+            set={(v) => set("bio", v)}
+            multiline
+          />
+          <Field
+            label={L("Public phone", "Téléphone public", "Teléfono público")}
+            value={form.phone}
+            set={(v) => set("phone", v)}
+            keyboard="phone-pad"
+          />
+        </Section>
+        <Section
+          title={L("Operating base", "Base opérationnelle", "Base operativa")}
+        >
+          <Field
+            label={L("Base city", "Ville de base", "Ciudad base")}
+            value={form.base_city}
+            set={(v) => set("base_city", v)}
+          />
+          <Field
+            label={L("Country", "Pays", "País")}
+            value={form.country}
+            set={(v) => set("country", v)}
+          />
+          <Field
+            label={L(
+              "Base airport IATA",
+              "Aéroport de base IATA",
+              "Aeropuerto base IATA",
+            )}
+            value={form.base_airport_code}
+            set={(v) => set("base_airport_code", v)}
+            cap="characters"
+          />
+          <Field
+            label={L("Nationality", "Nationalité", "Nacionalidad")}
+            value={form.nationality}
+            set={(v) => set("nationality", v)}
+          />
+          <Text style={s.help}>
+            {L(
+              "Air missions start from this airport; event recommendations use your base city/country.",
+              "Les missions aériennes partent de cet aéroport ; les événements utilisent votre ville/pays de base.",
+              "Las misiones aéreas parten de este aeropuerto; los eventos usan tu ciudad/país base.",
+            )}
+          </Text>
+        </Section>
+        <Section
+          title={L(
+            "Regulated identity",
+            "Identité réglementée",
+            "Identidad regulada",
+          )}
+        >
+          <Read
+            label={L("Verification", "Vérification", "Verificación")}
+            value={status}
+          />
+          <Read
+            label={L(
+              "Profession / specialty / licence",
+              "Profession / spécialité / licence",
+              "Profesión / especialidad / licencia",
+            )}
+            value={L(
+              "Managed through MediCrew verification",
+              "Géré via la vérification MediCrew",
+              "Gestionado mediante verificación MediCrew",
+            )}
+          />
+        </Section>
+        <Pressable
+          disabled={saving || preview}
+          onPress={save}
+          style={[s.button, (saving || preview) && { opacity: 0.45 }]}
+        >
+          <Text style={s.buttonText}>
+            {saving
+              ? L("Saving…", "Enregistrement…", "Guardando…")
+              : L("Save profile", "Enregistrer le profil", "Guardar perfil")}
+          </Text>
+        </Pressable>
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+function Section({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <View style={s.section}>
+      <Text style={s.sectionTitle}>{title}</Text>
+      {children}
+    </View>
+  );
+}
+function Field({
+  label,
+  value,
+  set,
+  multiline = false,
+  cap = "words",
+  keyboard = "default",
+}: {
+  label: string;
+  value: string;
+  set: (v: string) => void;
+  multiline?: boolean;
+  cap?: any;
+  keyboard?: any;
+}) {
+  return (
+    <View style={s.field}>
+      <Text style={s.label}>{label}</Text>
+      <TextInput
+        value={value}
+        onChangeText={set}
+        autoCapitalize={cap}
+        keyboardType={keyboard}
+        multiline={multiline}
+        style={[s.input, multiline && s.multi]}
+      />
+    </View>
+  );
+}
+function Read({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={s.read}>
+      <Text style={s.label}>{label}</Text>
+      <Text style={s.readValue}>{value}</Text>
+    </View>
+  );
+}
+const s = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: colors.paper },
+  container: { padding: 22, paddingBottom: 45 },
+  back: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: colors.ink,
+    marginBottom: 23,
+  },
+  eyebrow: {
+    fontSize: 10,
+    fontWeight: "900",
+    letterSpacing: 1.4,
+    color: colors.pro,
+  },
+  title: { fontSize: 34, fontWeight: "900", color: colors.ink, marginTop: 6 },
+  sub: {
+    fontSize: 13,
+    lineHeight: 20,
+    color: colors.muted,
+    marginTop: 7,
+    marginBottom: 17,
+  },
+  section: {
+    padding: 17,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.white,
+    marginBottom: 11,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: "900",
+    color: colors.ink,
+    marginBottom: 12,
+  },
+  field: { marginBottom: 12 },
+  label: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: colors.muted,
+    marginBottom: 6,
+  },
+  input: {
+    minHeight: 48,
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    backgroundColor: colors.paper,
+    color: colors.ink,
+  },
+  multi: { height: 105, textAlignVertical: "top", paddingTop: 12 },
+  help: { fontSize: 11, lineHeight: 17, color: colors.muted },
+  read: {
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.line,
+  },
+  readValue: { fontSize: 12, fontWeight: "800", color: colors.ink },
+  button: {
+    height: 55,
+    borderRadius: radii.md,
+    backgroundColor: colors.proDark,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  buttonText: { fontSize: 14, fontWeight: "900", color: colors.white },
+  info: {
+    padding: 12,
+    borderRadius: radii.md,
+    backgroundColor: colors.proSoft,
+    marginBottom: 12,
+  },
+  infoText: { fontSize: 11, color: colors.proDark },
+});

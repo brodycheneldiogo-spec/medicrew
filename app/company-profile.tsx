@@ -30,6 +30,7 @@ export default function CompanyProfile() {
     [address, setAddress] = useState(""),
     [headline, setHeadline] = useState(""),
     [bio, setBio] = useState(""),
+    [phone, setPhone] = useState(""),
     [website, setWebsite] = useState("");
   useEffect(() => {
     void load();
@@ -76,6 +77,7 @@ export default function CompanyProfile() {
     setAddress(c.address || "");
     setHeadline(p.headline || "");
     setBio(p.bio || "");
+    setPhone(p.phone || "");
     setWebsite(c.website || "");
     setLoading(false);
   }
@@ -103,6 +105,7 @@ export default function CompanyProfile() {
           .update({
             headline: headline.trim() || null,
             bio: bio.trim() || null,
+            phone: phone.trim() || null,
           })
           .eq("id", user.id),
       ]);
@@ -218,6 +221,13 @@ export default function CompanyProfile() {
             value={contact}
             set={setContact}
           />
+          <Field
+            label="Public phone"
+            value={phone}
+            set={setPhone}
+            cap="none"
+            keyboard="phone-pad"
+          />
           <Field label="Registered address" value={address} set={setAddress} />
           <Field label="Website" value={website} set={setWebsite} cap="none" />
           <Row
@@ -271,6 +281,7 @@ function Field({
   placeholder = "",
   multiline = false,
   cap = "words",
+  keyboard = "default",
 }: {
   label: string;
   value: string;
@@ -278,6 +289,7 @@ function Field({
   placeholder?: string;
   multiline?: boolean;
   cap?: any;
+  keyboard?: any;
 }) {
   return (
     <View style={s.field}>
@@ -287,6 +299,7 @@ function Field({
         onChangeText={set}
         placeholder={placeholder}
         autoCapitalize={cap}
+        keyboardType={keyboard}
         multiline={multiline}
         style={[s.input, multiline && s.multi]}
       />

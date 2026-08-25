@@ -154,7 +154,6 @@ export default function Admin() {
         });
     if (e) Alert.alert("Action failed", e.message);
     else {
-      await supabase.functions.invoke("dispatch-push-queue");
       await load();
     }
     setBusy("");
@@ -448,6 +447,12 @@ function Professional({
           <Info
             text={`${item.professional_type || "—"} · ${item.years_experience || 0} ans d’expérience`}
           />
+          <Info text={`Statut : ${item.verification_status || "—"}`} />
+          <Info text={`Spécialité : ${item.specialty || "—"}`} />
+          <Info text={`Nationalité : ${item.nationality || "—"}`} />
+          <Info
+            text={`Licence : ${item.license_number || "—"} · ${item.license_country || "—"} · ${item.license_authority || "—"}`}
+          />
           <Info
             text={[
               `IATA ${item.base_airport_code || "—"}`,
@@ -509,6 +514,12 @@ function Company({
       {expanded ? (
         <View style={s.details}>
           <Info text={item.address || "Adresse manquante"} />
+          <Info text={`Statut : ${item.verification_status || "—"}`} />
+          <Info text={`Représentant : ${item.contact_name || "—"}`} />
+          <Info
+            text={`Immatriculation : ${item.registration_country || "—"} · ${item.registration_number || "—"}`}
+          />
+          <Info text={`Site : ${item.website || "—"}`} />
           <Info text={p.bio || p.headline || "Aucun texte de présentation"} />
           <Info
             text={

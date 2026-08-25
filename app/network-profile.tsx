@@ -213,6 +213,14 @@ export default function NetworkProfile() {
                 )}
                 value={data.license_authority || "—"}
               />
+              <Row
+                label={L(
+                  "Public phone",
+                  "Téléphone public",
+                  "Teléfono público",
+                )}
+                value={data.phone || "—"}
+              />
             </>
           ) : (
             <>
@@ -240,6 +248,14 @@ export default function NetworkProfile() {
               <Row
                 label={L("Public email", "Email public", "Correo público")}
                 value={data.email || "—"}
+              />
+              <Row
+                label={L(
+                  "Public phone",
+                  "Téléphone public",
+                  "Teléfono público",
+                )}
+                value={data.phone || "—"}
               />
             </>
           )}
