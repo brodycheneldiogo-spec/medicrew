@@ -4,6 +4,7 @@ import { StatusBar, StyleSheet, View } from "react-native";
 import { colors } from "../lib/theme";
 import { supabase } from "../lib/supabase";
 import { PreferencesProvider } from "../lib/preferences-context";
+import "./global.css";
 
 const EXEMPT = new Set([
   "",

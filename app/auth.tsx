@@ -1,9 +1,7 @@
 import { useState } from "react";
 import {
-  Alert,
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -16,10 +14,11 @@ import { router, useLocalSearchParams } from "expo-router";
 import { FontAwesome } from "@expo/vector-icons";
 import { colors, radii } from "../lib/theme";
 import { MediCrewLogo } from "../lib/brand";
-import { supabase } from "../lib/supabase";
+import { supabase, supabaseConfigurationError } from "../lib/supabase";
 import { usePreferences } from "../lib/preferences-context";
 import { localize } from "../lib/i18n";
 import { PreAuthPreferences } from "../lib/preauth-preferences";
+import { AnimatedPressable as Pressable } from "../lib/animated-pressable";
 const webUrl = (path: string) =>
   typeof window === "undefined"
     ? path
@@ -32,12 +31,7 @@ const strong = (v: string) =>
 const isAdminEmail = (value?: string | null) =>
   value?.trim().toLowerCase() === ADMIN_EMAIL;
 function client() {
-  if (supabase) return supabase;
-  Alert.alert(
-    "Supabase not configured",
-    "Add the Expo public Supabase URL/key and restart Expo.",
-  );
-  return null;
+  return supabase;
 }
 async function routeAuthenticated(c: NonNullable<typeof supabase>) {
   const { data, error } = await c.rpc("my_account_access_state");
@@ -68,13 +62,6 @@ async function recordLegal(
   _profileId: string,
 ) {
   const { error } = await c.rpc("accept_current_legal_terms");
-  if (error) throw error;
-}
-async function sendEmailCode(c: NonNullable<typeof supabase>, email: string) {
-  const { error } = await c.auth.signInWithOtp({
-    email,
-    options: { shouldCreateUser: false },
-  });
   if (error) throw error;
 }
 async function routeTestAccount(
@@ -108,23 +95,21 @@ export default function Auth() {
   const [show, setShow] = useState(false);
   const [loading, setLoading] = useState(false);
   const [googleBusy, setGoogleBusy] = useState(false);
+  const [pageError, setPageError] = useState(supabaseConfigurationError || "");
   const role = requestedRole || "professional";
 
   async function finishSignup() {
     const c = client();
-    if (!c) return;
+    if (!c)
+      return setPageError(supabaseConfigurationError || "Service unavailable");
+    setPageError("");
     const em = email.trim().toLowerCase();
     if (!validEmail(em))
-      return Alert.alert(
+      return setPageError(
         L("Email required", "Email requis", "Email obligatorio"),
       );
     if (!strong(password))
-      return Alert.alert(
-        L(
-          "Password too weak",
-          "Mot de passe trop faible",
-          "Contraseña demasiado débil",
-        ),
+      return setPageError(
         L(
           "Use 8+ characters with uppercase, lowercase and a number.",
           "Utilisez 8+ caractères avec majuscule, minuscule et chiffre.",
@@ -183,24 +168,19 @@ export default function Auth() {
           .eq("id", data.user.id);
         if (profile.error) throw profile.error;
         await recordLegal(c, data.user.id);
-        await sendEmailCode(c, em);
-        return router.replace({
-          pathname: "/verify-email",
-          params: { email: em, returnTo: destination, flow: "google" },
-        } as never);
+        return router.replace(destination as never);
       }
       router.replace({
         pathname: "/verify-email",
         params: { email: em, returnTo: destination, flow: "signup" },
       } as never);
     } catch (e: any) {
-      Alert.alert(
-        L(
+      setPageError(
+        `${L(
           "Could not create account",
           "Impossible de créer le compte",
           "No se pudo crear la cuenta",
-        ),
-        e?.message || "MediCrew",
+        )}: ${e?.message || "MediCrew"}`,
       );
     } finally {
       setLoading(false);
@@ -209,10 +189,12 @@ export default function Auth() {
 
   async function emailSignIn() {
     const c = client();
-    if (!c) return;
+    if (!c)
+      return setPageError(supabaseConfigurationError || "Service unavailable");
+    setPageError("");
     const em = email.trim().toLowerCase();
     if (!validEmail(em) || !password)
-      return Alert.alert(
+      return setPageError(
         L(
           "Email and password required",
           "Email et mot de passe requis",
@@ -226,19 +208,15 @@ export default function Auth() {
     });
     setLoading(false);
     if (error)
-      return Alert.alert(
-        L("Sign in failed", "Connexion échouée", "Error al iniciar sesión"),
-        error.message,
+      return setPageError(
+        `${L("Sign in failed", "Connexion échouée", "Error al iniciar sesión")}: ${error.message}`,
       );
     if (isAdminEmail(data.user.email)) return await routeAuthenticated(c);
     if (em === TEST_EMAIL) {
       try {
         return await routeTestAccount(c, role);
       } catch (e: any) {
-        return Alert.alert(
-          "MediCrew",
-          e?.message || "Unable to open test account",
-        );
+        return setPageError(e?.message || "Unable to open test account");
       }
     }
     if (!data.user.email_confirmed_at)
@@ -251,9 +229,15 @@ export default function Auth() {
 
   async function google() {
     const c = client();
-    if (!c) return;
+    if (!c)
+      return setPageError(supabaseConfigurationError || "Service unavailable");
+    setPageError("");
     setGoogleBusy(true);
     try {
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem("medicrew.oauth.role", role);
+        window.localStorage.setItem("medicrew.oauth.mode", mode);
+      }
       const { data, error } = await c.auth.signInWithOAuth({
         provider: "google",
         options: {
@@ -268,14 +252,15 @@ export default function Auth() {
       // the authenticated user after validating the account state server-side.
       if (!data?.url) throw new Error("Could not start Google authentication");
     } catch (e: any) {
-      Alert.alert(
-        L(
+      setPageError(
+        `${L(
           "Google authentication failed",
           "Authentification Google échouée",
           "Falló la autenticación con Google",
-        ),
-        e?.message ||
-          L("Please try again.", "Réessayez.", "Inténtalo de nuevo."),
+        )}: ${
+          e?.message ||
+          L("Please try again.", "Réessayez.", "Inténtalo de nuevo.")
+        }`,
       );
     } finally {
       setGoogleBusy(false);
@@ -327,146 +312,225 @@ export default function Auth() {
             </Pressable>
             <PreAuthPreferences />
           </View>
-          <MediCrewLogo />
-          <Text style={s.progress}>
-            {mode === "signup"
-              ? L("CREATE ACCOUNT", "CRÉER UN COMPTE", "CREAR CUENTA")
-              : L("SECURE SIGN IN", "CONNEXION SÉCURISÉE", "INICIO SEGURO")}
-          </Text>
-          <Text style={s.title}>
-            {mode === "signup"
-              ? L("Join MediCrew.", "Rejoignez MediCrew.", "Únete a MediCrew.")
-              : L(
-                  "Sign in to MediCrew.",
-                  "Connectez-vous à MediCrew.",
-                  "Inicia sesión en MediCrew.",
-                )}
-          </Text>
-          <Text style={s.sub}>
-            {mode === "signup"
-              ? L(
-                  "Create your account with email or Google. An 8-digit code will verify your email before your profile can continue.",
-                  "Créez votre compte avec votre email ou Google. Un code à 8 chiffres vérifiera votre email avant de continuer.",
-                  "Crea tu cuenta con email o Google. Un código de 8 dígitos verificará tu email antes de continuar.",
-                )
-              : L(
-                  "Use your email and password or continue securely with Google.",
-                  "Utilisez votre email et mot de passe ou continuez de façon sécurisée avec Google.",
-                  "Usa tu email y contraseña o continúa de forma segura con Google.",
-                )}
-          </Text>
-          <View style={s.form}>
-            <Field
-              label={L("Email address", "Adresse email", "Correo electrónico")}
-              value={email}
-              set={setEmail}
-            />
-            <Text style={s.label}>
-              {L("Password", "Mot de passe", "Contraseña")}
-            </Text>
-            <Password
-              value={password}
-              set={setPassword}
-              show={show}
-              setShow={setShow}
-              labels={[
-                L("Show", "Afficher", "Mostrar"),
-                L("Hide", "Masquer", "Ocultar"),
+          <View style={s.authCard}>
+            <View
+              style={[
+                s.rolePill,
+                role === "company" ? s.companyPill : s.proPill,
               ]}
-            />
-            {mode === "signup" ? (
-              <>
-                <Text style={s.rules}>
-                  {strong(password)
-                    ? L(
-                        "✓ Strong password",
-                        "✓ Mot de passe fort",
-                        "✓ Contraseña segura",
-                      )
-                    : L(
-                        "8+ characters, uppercase, lowercase and a number.",
-                        "8+ caractères, majuscule, minuscule et chiffre.",
-                        "8+ caracteres, mayúscula, minúscula y número.",
-                      )}
-                </Text>
-                <Pressable disabled={loading} onPress={finishSignup}>
-                  <LinearGradient
-                    colors={[colors.greenStart, colors.green, colors.greenEnd]}
-                    style={s.button}
-                  >
-                    <Text style={s.buttonText}>
-                      {loading
-                        ? L(
-                            "Creating account…",
-                            "Création du compte…",
-                            "Creando cuenta…",
-                          )
-                        : L(
-                            "Create account with email",
-                            "Créer avec email",
-                            "Crear con email",
-                          )}
-                    </Text>
-                  </LinearGradient>
-                </Pressable>
-                <GoogleButton
-                  busy={googleBusy}
-                  onPress={google}
-                  label={googleLabel}
-                />
-                {legalCopy}
-                <Pressable style={s.switch} onPress={() => setMode("signin")}>
-                  <Text style={s.switchText}>
-                    {L(
-                      "Already have an account? Sign in",
-                      "Déjà un compte ? Se connecter",
-                      "¿Ya tienes cuenta? Inicia sesión",
+            >
+              <Text
+                style={[
+                  s.rolePillText,
+                  {
+                    color:
+                      role === "company" ? colors.companyDark : colors.proDark,
+                  },
+                ]}
+              >
+                {role === "company"
+                  ? L(
+                      "ORGANIZATION ACCESS",
+                      "ACCÈS ENTREPRISE",
+                      "ACCESO EMPRESA",
+                    )
+                  : L(
+                      "PROFESSIONAL ACCESS",
+                      "ACCÈS PROFESSIONNEL",
+                      "ACCESO PROFESIONAL",
                     )}
-                  </Text>
-                </Pressable>
-              </>
-            ) : (
-              <>
-                <Pressable disabled={loading} onPress={emailSignIn}>
-                  <LinearGradient
-                    colors={[colors.greenStart, colors.green, colors.greenEnd]}
-                    style={s.button}
-                  >
-                    <Text style={s.buttonText}>
-                      {loading
-                        ? L("Signing in…", "Connexion…", "Iniciando sesión…")
-                        : L("Sign in", "Se connecter", "Iniciar sesión")}
-                    </Text>
-                  </LinearGradient>
-                </Pressable>
-                <GoogleButton
-                  busy={googleBusy}
-                  onPress={google}
-                  label={googleLabel}
-                />
+              </Text>
+            </View>
+            <MediCrewLogo />
+            <Text style={s.progress}>
+              {mode === "signup"
+                ? L("CREATE ACCOUNT", "CRÉER UN COMPTE", "CREAR CUENTA")
+                : L("SECURE SIGN IN", "CONNEXION SÉCURISÉE", "INICIO SEGURO")}
+            </Text>
+            <Text style={s.title}>
+              {mode === "signup"
+                ? L(
+                    "Join MediCrew.",
+                    "Rejoignez MediCrew.",
+                    "Únete a MediCrew.",
+                  )
+                : L(
+                    "Sign in to MediCrew.",
+                    "Connectez-vous à MediCrew.",
+                    "Inicia sesión en MediCrew.",
+                  )}
+            </Text>
+            <Text style={s.sub}>
+              {mode === "signup"
+                ? L(
+                    "Create your account with email or Google. An 8-digit code will verify your email before your profile can continue.",
+                    "Créez votre compte avec votre email ou Google. Un code à 8 chiffres vérifiera votre email avant de continuer.",
+                    "Crea tu cuenta con email o Google. Un código de 8 dígitos verificará tu email antes de continuar.",
+                  )
+                : L(
+                    "Use your email and password or continue securely with Google.",
+                    "Utilisez votre email et mot de passe ou continuez de façon sécurisée avec Google.",
+                    "Usa tu email y contraseña o continúa de forma segura con Google.",
+                  )}
+            </Text>
+            <View style={s.form}>
+              <View style={s.modeTabs}>
                 <Pressable
-                  style={s.switch}
-                  onPress={() => router.push("/forgot-password")}
+                  onPress={() => setMode("signup")}
+                  style={[s.modeTab, mode === "signup" && s.modeTabOn]}
                 >
-                  <Text style={s.switchText}>
-                    {L(
-                      "Forgot your password?",
-                      "Mot de passe oublié ?",
-                      "¿Olvidaste tu contraseña?",
-                    )}
+                  <Text
+                    style={[
+                      s.modeTabText,
+                      mode === "signup" && s.modeTabTextOn,
+                    ]}
+                  >
+                    {L("Create account", "Créer un compte", "Crear cuenta")}
                   </Text>
                 </Pressable>
-                <Pressable style={s.switch} onPress={() => setMode("signup")}>
-                  <Text style={s.switchText}>
-                    {L(
-                      "Create an account",
-                      "Créer un compte",
-                      "Crear una cuenta",
-                    )}
+                <Pressable
+                  onPress={() => setMode("signin")}
+                  style={[s.modeTab, mode === "signin" && s.modeTabOn]}
+                >
+                  <Text
+                    style={[
+                      s.modeTabText,
+                      mode === "signin" && s.modeTabTextOn,
+                    ]}
+                  >
+                    {L("Sign in", "Se connecter", "Iniciar sesión")}
                   </Text>
                 </Pressable>
-              </>
-            )}
+              </View>
+              {pageError ? (
+                <View style={s.errorBox}>
+                  <Text style={s.errorText}>{pageError}</Text>
+                </View>
+              ) : null}
+              <Field
+                label={L(
+                  "Email address",
+                  "Adresse email",
+                  "Correo electrónico",
+                )}
+                value={email}
+                set={setEmail}
+              />
+              <Text style={s.label}>
+                {L("Password", "Mot de passe", "Contraseña")}
+              </Text>
+              <Password
+                value={password}
+                set={setPassword}
+                show={show}
+                setShow={setShow}
+                labels={[
+                  L("Show", "Afficher", "Mostrar"),
+                  L("Hide", "Masquer", "Ocultar"),
+                ]}
+              />
+              {mode === "signup" ? (
+                <>
+                  <Text style={s.rules}>
+                    {strong(password)
+                      ? L(
+                          "✓ Strong password",
+                          "✓ Mot de passe fort",
+                          "✓ Contraseña segura",
+                        )
+                      : L(
+                          "8+ characters, uppercase, lowercase and a number.",
+                          "8+ caractères, majuscule, minuscule et chiffre.",
+                          "8+ caracteres, mayúscula, minúscula y número.",
+                        )}
+                  </Text>
+                  <Pressable disabled={loading} onPress={finishSignup}>
+                    <LinearGradient
+                      colors={[
+                        colors.greenStart,
+                        colors.green,
+                        colors.greenEnd,
+                      ]}
+                      style={s.button}
+                    >
+                      <Text style={s.buttonText}>
+                        {loading
+                          ? L(
+                              "Creating account…",
+                              "Création du compte…",
+                              "Creando cuenta…",
+                            )
+                          : L(
+                              "Create account with email",
+                              "Créer avec email",
+                              "Crear con email",
+                            )}
+                      </Text>
+                    </LinearGradient>
+                  </Pressable>
+                  <GoogleButton
+                    busy={googleBusy}
+                    onPress={google}
+                    label={googleLabel}
+                  />
+                  {legalCopy}
+                  <Pressable style={s.switch} onPress={() => setMode("signin")}>
+                    <Text style={s.switchText}>
+                      {L(
+                        "Already have an account? Sign in",
+                        "Déjà un compte ? Se connecter",
+                        "¿Ya tienes cuenta? Inicia sesión",
+                      )}
+                    </Text>
+                  </Pressable>
+                </>
+              ) : (
+                <>
+                  <Pressable disabled={loading} onPress={emailSignIn}>
+                    <LinearGradient
+                      colors={[
+                        colors.greenStart,
+                        colors.green,
+                        colors.greenEnd,
+                      ]}
+                      style={s.button}
+                    >
+                      <Text style={s.buttonText}>
+                        {loading
+                          ? L("Signing in…", "Connexion…", "Iniciando sesión…")
+                          : L("Sign in", "Se connecter", "Iniciar sesión")}
+                      </Text>
+                    </LinearGradient>
+                  </Pressable>
+                  <GoogleButton
+                    busy={googleBusy}
+                    onPress={google}
+                    label={googleLabel}
+                  />
+                  <Pressable
+                    style={s.switch}
+                    onPress={() => router.push("/forgot-password")}
+                  >
+                    <Text style={s.switchText}>
+                      {L(
+                        "Forgot your password?",
+                        "Mot de passe oublié ?",
+                        "¿Olvidaste tu contraseña?",
+                      )}
+                    </Text>
+                  </Pressable>
+                  <Pressable style={s.switch} onPress={() => setMode("signup")}>
+                    <Text style={s.switchText}>
+                      {L(
+                        "Create an account",
+                        "Créer un compte",
+                        "Crear una cuenta",
+                      )}
+                    </Text>
+                  </Pressable>
+                </>
+              )}
+            </View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -542,8 +606,27 @@ function GoogleButton({
   );
 }
 const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.paper },
-  container: { padding: 22, paddingBottom: 45 },
+  safe: { flex: 1, backgroundColor: "#EAF6F0" },
+  container: {
+    flexGrow: 1,
+    padding: 22,
+    paddingBottom: 45,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  authCard: {
+    width: "100%",
+    maxWidth: 590,
+    padding: 28,
+    borderRadius: 30,
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: "#D8E8E1",
+    shadowColor: colors.ink,
+    shadowOpacity: 0.1,
+    shadowRadius: 30,
+    shadowOffset: { width: 0, height: 16 },
+  },
   top: {
     flexDirection: "row",
     alignItems: "center",
@@ -567,6 +650,53 @@ const s = StyleSheet.create({
   },
   sub: { fontSize: 13, lineHeight: 20, color: colors.muted, marginTop: 8 },
   form: { marginTop: 25 },
+  rolePill: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 11,
+    paddingVertical: 7,
+    borderRadius: 999,
+    marginBottom: 15,
+  },
+  proPill: { backgroundColor: colors.proSoft },
+  companyPill: { backgroundColor: colors.companySoft },
+  rolePillText: { fontSize: 9, fontWeight: "900", letterSpacing: 1 },
+  modeTabs: {
+    flexDirection: "row",
+    padding: 4,
+    borderRadius: 15,
+    backgroundColor: colors.paper,
+    marginBottom: 18,
+  },
+  modeTab: {
+    flex: 1,
+    minHeight: 42,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modeTabOn: {
+    backgroundColor: colors.white,
+    shadowColor: colors.ink,
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+  },
+  modeTabText: { color: colors.muted, fontSize: 11, fontWeight: "800" },
+  modeTabTextOn: { color: colors.ink },
+  errorBox: {
+    padding: 13,
+    borderRadius: 13,
+    backgroundColor: "#FFF1F1",
+    borderWidth: 1,
+    borderColor: "#F0CACA",
+    marginBottom: 15,
+  },
+  errorText: {
+    color: "#9B3030",
+    fontSize: 11.5,
+    lineHeight: 18,
+    fontWeight: "700",
+  },
   field: { marginBottom: 15 },
   label: {
     fontSize: 11,

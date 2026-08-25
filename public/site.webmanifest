@@ -1,0 +1,9 @@
+{
+  "name": "MediCrew",
+  "short_name": "MediCrew",
+  "description": "Verified medical mission network",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ECF8F3",
+  "theme_color": "#08785C"
+}

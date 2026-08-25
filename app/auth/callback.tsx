@@ -55,8 +55,37 @@ export default function AuthCallback() {
         );
 
       const email = user.email?.trim().toLowerCase() || null;
+      const storedRole =
+        typeof window === "undefined"
+          ? null
+          : window.localStorage.getItem("medicrew.oauth.role");
+      const storedMode =
+        typeof window === "undefined"
+          ? null
+          : window.localStorage.getItem("medicrew.oauth.mode");
       const requestedRole =
-        user.user_metadata?.role === "company" ? "company" : "professional";
+        storedRole === "company" || user.user_metadata?.role === "company"
+          ? "company"
+          : "professional";
+      if (storedMode === "signup") {
+        const metadata = await client.auth.updateUser({
+          data: {
+            role: requestedRole,
+            signup_complete: true,
+            legal_accepted: true,
+            terms_version: "2.1",
+            privacy_version: "1.2",
+            data_policy_version: "1.1",
+            preferred_language: prefs.language,
+            preferred_currency: prefs.currency,
+          },
+        });
+        if (metadata.error) return setMessage(metadata.error.message);
+      }
+      if (typeof window !== "undefined") {
+        window.localStorage.removeItem("medicrew.oauth.role");
+        window.localStorage.removeItem("medicrew.oauth.mode");
+      }
       const update = await client
         .from("profiles")
         .update(
@@ -66,6 +95,10 @@ export default function AuthCallback() {
         .select("role")
         .maybeSingle();
       if (update.error) return setMessage(update.error.message);
+      if (storedMode === "signup") {
+        const legal = await client.rpc("accept_current_legal_terms");
+        if (legal.error) return setMessage(legal.error.message);
+      }
       if (!active) return;
       const { data: access } = await client.rpc("my_account_access_state");
       const state = access as { role?: string; status?: string } | null;
@@ -86,7 +119,7 @@ export default function AuthCallback() {
     return () => {
       active = false;
     };
-  }, [code, error, errorDescription, prefs.language]);
+  }, [code, error, errorDescription, prefs.currency, prefs.language]);
 
   return (
     <SafeAreaView style={s.safe}>

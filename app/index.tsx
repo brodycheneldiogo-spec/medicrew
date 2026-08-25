@@ -1,6 +1,13 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { useEffect, useRef, useState } from "react";
-import { Animated, StyleSheet, Text, View } from "react-native";
+import {
+  Animated,
+  ScrollView,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import Svg, { Circle, Path, Rect } from "react-native-svg";
@@ -10,6 +17,7 @@ import { usePreferences } from "../lib/preferences-context";
 import { localize } from "../lib/i18n";
 import { PreAuthPreferences } from "../lib/preauth-preferences";
 import { AnimatedPressable as Pressable } from "../lib/animated-pressable";
+import Head from "expo-router/head";
 
 type Role = "professional" | "company";
 export default function Welcome() {
@@ -17,6 +25,8 @@ export default function Welcome() {
   const L = (en: string, fr: string, es: string) =>
     localize(prefs.language, en, fr, es);
   const [role, setRole] = useState<Role | null>(null);
+  const { width } = useWindowDimensions();
+  const wide = width >= 920;
   const enter = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     Animated.spring(enter, {
@@ -30,146 +40,269 @@ export default function Welcome() {
     role === "company" ? gradients.company : gradients.professional;
   return (
     <SafeAreaView style={styles.safe}>
+      <Head>
+        <title>
+          MediCrew | Medical missions for doctors, nurses and healthcare
+          organizations
+        </title>
+        <meta
+          name="description"
+          content="MediCrew connects verified doctors and nurses with air-medical transport, repatriation and event healthcare organizations worldwide."
+        />
+        <meta
+          name="keywords"
+          content="medical missions, healthcare staffing, doctor missions, nurse missions, air medical transport, medical repatriation, event medical staffing, médecins missions, infirmiers missions"
+        />
+        <link rel="canonical" href="https://www.medicrew.app/" />
+        <meta
+          name="robots"
+          content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1"
+        />
+      </Head>
       <LinearGradient
         colors={gradients.soft}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.gradient}
       >
-        <Animated.View
-          style={[
-            styles.container,
-            {
-              opacity: enter,
-              transform: [
-                {
-                  translateY: enter.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [14, 0],
-                  }),
-                },
-              ],
-            },
-          ]}
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scroll}
         >
-          <View>
-            <View style={styles.top}>
-              <MediCrewLogo />
-              <PreAuthPreferences />
-            </View>
-            <View style={styles.badge}>
-              <View style={styles.dot} />
-              <Text style={styles.badgeText}>
-                {L(
-                  "VERIFIED MEDICAL MISSION NETWORK",
-                  "RÉSEAU DE MISSIONS MÉDICALES VÉRIFIÉ",
-                  "RED VERIFICADA DE MISIONES MÉDICAS",
-                )}
-              </Text>
-            </View>
-            <View style={styles.hero}>
-              <Text style={styles.eyebrow}>
-                {L(
-                  "CARE MOVES FORWARD",
-                  "LES SOINS AVANCENT",
-                  "LA ATENCIÓN AVANZA",
-                )}
-              </Text>
-              <Text style={styles.title}>
-                {L(
-                  "One network. Two sides of every mission.",
-                  "Un réseau. Deux côtés de chaque mission.",
-                  "Una red. Dos lados de cada misión.",
-                )}
-              </Text>
-              <Text style={styles.subtitle}>
-                {L(
-                  "Verified doctors and nurses meet transport, repatriation and event organizations that need them.",
-                  "Des médecins et infirmiers vérifiés rencontrent les organisations de transport, rapatriement et événementiel qui ont besoin d’eux.",
-                  "Médicos y enfermeros verificados conectan con organizaciones de transporte, repatriación y eventos que los necesitan.",
-                )}
-              </Text>
-            </View>
-          </View>
-          <View>
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>
-                {L(
-                  "Choose your side",
-                  "Choisissez votre côté",
-                  "Elige tu lado",
-                )}
-              </Text>
-              <RoleCard
-                role="professional"
-                selected={role === "professional"}
-                onPress={() => setRole("professional")}
-                language={prefs.language}
-              />
-              <RoleCard
-                role="company"
-                selected={role === "company"}
-                onPress={() => setRole("company")}
-                language={prefs.language}
-              />
-            </View>
-            <Pressable
-              disabled={!role}
-              onPress={() =>
-                role && router.push({ pathname: "/auth", params: { role } })
-              }
-            >
-              <LinearGradient
-                colors={palette}
-                start={{ x: 0, y: 0.5 }}
-                end={{ x: 1, y: 0.5 }}
-                style={[styles.button, !role && styles.buttonDisabled]}
-              >
-                <Text style={styles.buttonText}>
-                  {role === "company"
-                    ? L(
-                        "Continue as company",
-                        "Continuer comme entreprise",
-                        "Continuar como empresa",
-                      )
-                    : role === "professional"
-                      ? L(
-                          "Continue as professional",
-                          "Continuer comme professionnel",
-                          "Continuar como profesional",
-                        )
-                      : L(
-                          "Choose a side",
-                          "Choisissez un côté",
-                          "Elige un lado",
-                        )}
+          <Animated.View
+            style={[
+              styles.container,
+              wide && styles.containerWide,
+              {
+                opacity: enter,
+                transform: [
+                  {
+                    translateY: enter.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [14, 0],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          >
+            <View style={[styles.intro, wide && styles.introWide]}>
+              <View style={styles.top}>
+                <MediCrewLogo />
+                <PreAuthPreferences />
+              </View>
+              <View style={styles.badge}>
+                <View style={styles.dot} />
+                <Text style={styles.badgeText}>
+                  {L(
+                    "VERIFIED MEDICAL MISSION NETWORK",
+                    "RÉSEAU DE MISSIONS MÉDICALES VÉRIFIÉ",
+                    "RED VERIFICADA DE MISIONES MÉDICAS",
+                  )}
                 </Text>
-                <Text style={styles.buttonArrow}>→</Text>
-              </LinearGradient>
-            </Pressable>
-            <Pressable
-              onPress={() => router.push("/legal")}
-              style={styles.legal}
-            >
-              <Text style={styles.legalText}>
+              </View>
+              <View style={styles.hero}>
+                <Text style={styles.eyebrow}>
+                  {L(
+                    "CARE MOVES FORWARD",
+                    "LES SOINS AVANCENT",
+                    "LA ATENCIÓN AVANZA",
+                  )}
+                </Text>
+                <Text style={[styles.title, wide && styles.titleWide]}>
+                  {L(
+                    "One network. Two sides of every mission.",
+                    "Un réseau. Deux côtés de chaque mission.",
+                    "Una red. Dos lados de cada misión.",
+                  )}
+                </Text>
+                <Text style={styles.subtitle}>
+                  {L(
+                    "Verified doctors and nurses meet transport, repatriation and event organizations that need them.",
+                    "Des médecins et infirmiers vérifiés rencontrent les organisations de transport, rapatriement et événementiel qui ont besoin d’eux.",
+                    "Médicos y enfermeros verificados conectan con organizaciones de transporte, repatriación y eventos que los necesitan.",
+                  )}
+                </Text>
+              </View>
+            </View>
+            <View style={[styles.selector, wide && styles.selectorWide]}>
+              <View style={styles.card}>
+                <Text style={styles.cardTitle}>
+                  {L(
+                    "Choose your side",
+                    "Choisissez votre côté",
+                    "Elige tu lado",
+                  )}
+                </Text>
+                <RoleCard
+                  role="professional"
+                  selected={role === "professional"}
+                  onPress={() => setRole("professional")}
+                  language={prefs.language}
+                />
+                <RoleCard
+                  role="company"
+                  selected={role === "company"}
+                  onPress={() => setRole("company")}
+                  language={prefs.language}
+                />
+              </View>
+              <Pressable
+                disabled={!role}
+                onPress={() =>
+                  role && router.push({ pathname: "/auth", params: { role } })
+                }
+              >
+                <LinearGradient
+                  colors={palette}
+                  start={{ x: 0, y: 0.5 }}
+                  end={{ x: 1, y: 0.5 }}
+                  style={[styles.button, !role && styles.buttonDisabled]}
+                >
+                  <Text style={styles.buttonText}>
+                    {role === "company"
+                      ? L(
+                          "Continue as company",
+                          "Continuer comme entreprise",
+                          "Continuar como empresa",
+                        )
+                      : role === "professional"
+                        ? L(
+                            "Continue as professional",
+                            "Continuer comme professionnel",
+                            "Continuar como profesional",
+                          )
+                        : L(
+                            "Choose a side",
+                            "Choisissez un côté",
+                            "Elige un lado",
+                          )}
+                  </Text>
+                  <Text style={styles.buttonArrow}>→</Text>
+                </LinearGradient>
+              </Pressable>
+              <Pressable
+                onPress={() => router.push("/legal")}
+                style={styles.legal}
+              >
+                <Text style={styles.legalText}>
+                  {L(
+                    "Privacy · Terms · Data policy",
+                    "Confidentialité · Conditions · Données",
+                    "Privacidad · Términos · Datos",
+                  )}
+                </Text>
+              </Pressable>
+              <Text style={styles.footer}>
                 {L(
-                  "Privacy · Terms · Data policy",
-                  "Confidentialité · Conditions · Données",
-                  "Privacidad · Términos · Datos",
+                  "MediCrew · Verified people. Safer missions.",
+                  "MediCrew · Profils vérifiés. Missions plus sûres.",
+                  "MediCrew · Personas verificadas. Misiones más seguras.",
                 )}
               </Text>
-            </Pressable>
-            <Text style={styles.footer}>
+            </View>
+          </Animated.View>
+          <View style={[styles.proof, wide && styles.proofWide]}>
+            <Proof
+              value="2"
+              label={L(
+                "clear account types",
+                "parcours clairement séparés",
+                "tipos de cuenta claros",
+              )}
+            />
+            <Proof
+              value="5"
+              label={L(
+                "professional documents",
+                "documents professionnels",
+                "documentos profesionales",
+              )}
+            />
+            <Proof
+              value="24h"
+              label={L(
+                "target review time",
+                "délai de revue visé",
+                "plazo de revisión previsto",
+              )}
+            />
+          </View>
+          <View style={styles.seoSection}>
+            <Text style={styles.seoEyebrow}>
               {L(
-                "MediCrew · Verified people. Safer missions.",
-                "MediCrew · Profils vérifiés. Missions plus sûres.",
-                "MediCrew · Personas verificadas. Misiones más seguras.",
+                "BUILT FOR INTERNATIONAL MEDICAL OPERATIONS",
+                "CONÇU POUR LES OPÉRATIONS MÉDICALES INTERNATIONALES",
+                "CREADO PARA OPERACIONES MÉDICAS INTERNACIONALES",
               )}
             </Text>
+            <Text style={styles.seoTitle}>
+              {L(
+                "From air-medical transport to event healthcare staffing.",
+                "Du transport aéromédical au renfort médical événementiel.",
+                "Del transporte aeromédico al personal sanitario para eventos.",
+              )}
+            </Text>
+            <View style={[styles.seoCards, wide && styles.seoCardsWide]}>
+              <SeoCard
+                title={L(
+                  "For doctors and nurses",
+                  "Pour les médecins et infirmiers",
+                  "Para médicos y enfermeros",
+                )}
+                text={L(
+                  "Create a verified profile, publish availability and discover relevant medical assignments.",
+                  "Créez un profil vérifié, publiez vos disponibilités et trouvez des missions médicales adaptées.",
+                  "Crea un perfil verificado, publica tu disponibilidad y encuentra misiones médicas relevantes.",
+                )}
+              />
+              <SeoCard
+                title={L(
+                  "For healthcare organizations",
+                  "Pour les entreprises de santé",
+                  "Para organizaciones sanitarias",
+                )}
+                text={L(
+                  "Find verified professionals for repatriation, medical transport and event operations.",
+                  "Trouvez des professionnels vérifiés pour le rapatriement, le transport médical et l’événementiel.",
+                  "Encuentra profesionales verificados para repatriación, transporte médico y eventos.",
+                )}
+              />
+              <SeoCard
+                title={L(
+                  "Private and controlled",
+                  "Privé et contrôlé",
+                  "Privado y controlado",
+                )}
+                text={L(
+                  "Documents stay private, messaging is protected, and every account is reviewed before network access.",
+                  "Les documents restent privés, la messagerie est protégée et chaque compte est contrôlé avant l’accès au réseau.",
+                  "Los documentos siguen privados, la mensajería está protegida y cada cuenta se revisa antes del acceso.",
+                )}
+              />
+            </View>
           </View>
-        </Animated.View>
+        </ScrollView>
       </LinearGradient>
     </SafeAreaView>
+  );
+}
+
+function Proof({ value, label }: { value: string; label: string }) {
+  return (
+    <View style={styles.proofItem}>
+      <Text style={styles.proofValue}>{value}</Text>
+      <Text style={styles.proofLabel}>{label}</Text>
+    </View>
+  );
+}
+
+function SeoCard({ title, text }: { title: string; text: string }) {
+  return (
+    <View style={styles.seoCard}>
+      <Text style={styles.seoCardTitle}>{title}</Text>
+      <Text style={styles.seoCardText}>{text}</Text>
+    </View>
   );
 }
 
@@ -252,7 +385,7 @@ function RoleCard({
           { color: company ? colors.company : colors.pro },
         ]}
       >
-        ›
+        {selected ? "✓" : "›"}
       </Text>
     </Pressable>
   );
@@ -310,13 +443,27 @@ function CompanyIllustration() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.paper },
   gradient: { flex: 1 },
+  scroll: { flexGrow: 1, paddingBottom: 54 },
   container: {
-    flex: 1,
+    width: "100%",
+    maxWidth: 1180,
+    alignSelf: "center",
     padding: 22,
-    paddingTop: 10,
+    paddingTop: 34,
     justifyContent: "center",
     gap: 22,
   },
+  containerWide: {
+    minHeight: 720,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 72,
+    paddingHorizontal: 54,
+  },
+  intro: { width: "100%" },
+  introWide: { flex: 1.08 },
+  selector: { width: "100%" },
+  selectorWide: { flex: 0.92 },
   top: {
     flexDirection: "row",
     alignItems: "flex-start",
@@ -352,12 +499,13 @@ const styles = StyleSheet.create({
     marginBottom: 9,
   },
   title: {
-    fontSize: 35,
-    lineHeight: 39,
+    fontSize: 36,
+    lineHeight: 41,
     fontWeight: "900",
     color: colors.ink,
     letterSpacing: -1.45,
   },
+  titleWide: { fontSize: 52, lineHeight: 56, letterSpacing: -2.1 },
   subtitle: {
     marginTop: 12,
     color: colors.muted,
@@ -436,5 +584,75 @@ const styles = StyleSheet.create({
     color: colors.muted,
     fontSize: 11,
     marginTop: 6,
+  },
+  proof: {
+    width: "100%",
+    maxWidth: 1072,
+    alignSelf: "center",
+    flexDirection: "row",
+    flexWrap: "wrap",
+    paddingHorizontal: 22,
+    gap: 10,
+  },
+  proofWide: { justifyContent: "center" },
+  proofItem: {
+    flexGrow: 1,
+    flexBasis: 180,
+    padding: 18,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,.76)",
+    borderWidth: 1,
+    borderColor: "#D8E9E1",
+    alignItems: "center",
+  },
+  proofValue: { fontSize: 25, fontWeight: "900", color: colors.greenDark },
+  proofLabel: {
+    marginTop: 4,
+    fontSize: 10.5,
+    fontWeight: "800",
+    color: colors.muted,
+    textAlign: "center",
+  },
+  seoSection: {
+    width: "100%",
+    maxWidth: 1120,
+    alignSelf: "center",
+    paddingHorizontal: 22,
+    paddingTop: 72,
+  },
+  seoEyebrow: {
+    textAlign: "center",
+    color: colors.greenDark,
+    fontSize: 10,
+    letterSpacing: 1.4,
+    fontWeight: "900",
+  },
+  seoTitle: {
+    maxWidth: 760,
+    alignSelf: "center",
+    marginTop: 9,
+    color: colors.ink,
+    fontSize: 31,
+    lineHeight: 37,
+    letterSpacing: -0.8,
+    textAlign: "center",
+    fontWeight: "900",
+  },
+  seoCards: { marginTop: 25, gap: 12 },
+  seoCardsWide: { flexDirection: "row" },
+  seoCard: {
+    flex: 1,
+    padding: 22,
+    borderRadius: 22,
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.line,
+  },
+  seoCardTitle: { color: colors.ink, fontSize: 16, fontWeight: "900" },
+  seoCardText: {
+    color: colors.muted,
+    fontSize: 12,
+    lineHeight: 19,
+    marginTop: 7,
   },
 });

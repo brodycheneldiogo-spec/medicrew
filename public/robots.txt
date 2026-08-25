@@ -1,0 +1,19 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /auth
+Disallow: /banned
+Disallow: /company
+Disallow: /direct-chat
+Disallow: /home
+Disallow: /messages
+Disallow: /missions
+Disallow: /network
+Disallow: /notifications
+Disallow: /onboarding
+Disallow: /pending-review
+Disallow: /preferences
+Disallow: /professional
+Disallow: /verify-email
+
+Sitemap: https://www.medicrew.app/sitemap.xml
