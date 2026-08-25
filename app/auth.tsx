@@ -287,13 +287,6 @@ export default function Auth() {
           "Al crear una cuenta, aceptas los Términos, la Política de privacidad y la Política de datos de MediCrew.",
         )}
       </Text>
-      <Text style={s.legalLink}>
-        {L(
-          "Trust & Privacy →",
-          "Confiance & confidentialité →",
-          "Confianza y privacidad →",
-        )}
-      </Text>
     </Pressable>
   );
   return (
@@ -474,15 +467,6 @@ export default function Auth() {
                     label={googleLabel}
                   />
                   {legalCopy}
-                  <Pressable style={s.switch} onPress={() => setMode("signin")}>
-                    <Text style={s.switchText}>
-                      {L(
-                        "Already have an account? Sign in",
-                        "Déjà un compte ? Se connecter",
-                        "¿Ya tienes cuenta? Inicia sesión",
-                      )}
-                    </Text>
-                  </Pressable>
                 </>
               ) : (
                 <>
@@ -765,8 +749,8 @@ const s = StyleSheet.create({
   switch: { paddingVertical: 14, alignItems: "center" },
   switchText: { fontSize: 12, fontWeight: "800", color: colors.greenDark },
   legalNotice: {
-    paddingVertical: 13,
-    paddingHorizontal: 4,
+    paddingTop: 12,
+    paddingHorizontal: 8,
     alignItems: "center",
   },
   legalText: {

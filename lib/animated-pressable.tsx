@@ -1,13 +1,4 @@
-import { useRef } from "react";
-import {
-  Animated,
-  Pressable,
-  type PressableProps,
-  type StyleProp,
-  type ViewStyle,
-} from "react-native";
-
-const MotionPressable = Animated.createAnimatedComponent(Pressable);
+import { Pressable, type PressableProps, type StyleProp, type ViewStyle } from "react-native";
 
 type Props = Omit<PressableProps, "style"> & {
   style?:
@@ -22,30 +13,16 @@ export function AnimatedPressable({
   disabled,
   ...props
 }: Props) {
-  const scale = useRef(new Animated.Value(1)).current;
-  const move = (toValue: number) =>
-    Animated.spring(scale, {
-      toValue,
-      useNativeDriver: true,
-      speed: 34,
-      bounciness: 3,
-    }).start();
-
   return (
-    <MotionPressable
+    <Pressable
       {...props}
       disabled={disabled}
-      onPressIn={(event) => {
-        move(scaleTo);
-        props.onPressIn?.(event);
-      }}
-      onPressOut={(event) => {
-        move(1);
-        props.onPressOut?.(event);
-      }}
       style={(state) => [
         typeof style === "function" ? style(state) : style,
-        { transform: [{ scale }], opacity: disabled ? 0.55 : 1 },
+        {
+          transform: [{ scale: state.pressed ? scaleTo : 1 }],
+          opacity: disabled ? 0.55 : 1,
+        },
       ]}
     />
   );

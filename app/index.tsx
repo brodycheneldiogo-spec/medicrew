@@ -193,41 +193,8 @@ export default function Welcome() {
                   )}
                 </Text>
               </Pressable>
-              <Text style={styles.footer}>
-                {L(
-                  "MediCrew · Verified people. Safer missions.",
-                  "MediCrew · Profils vérifiés. Missions plus sûres.",
-                  "MediCrew · Personas verificadas. Misiones más seguras.",
-                )}
-              </Text>
             </View>
           </Animated.View>
-          <View style={[styles.proof, wide && styles.proofWide]}>
-            <Proof
-              value="2"
-              label={L(
-                "clear account types",
-                "parcours clairement séparés",
-                "tipos de cuenta claros",
-              )}
-            />
-            <Proof
-              value="5"
-              label={L(
-                "professional documents",
-                "documents professionnels",
-                "documentos profesionales",
-              )}
-            />
-            <Proof
-              value="24h"
-              label={L(
-                "target review time",
-                "délai de revue visé",
-                "plazo de revisión previsto",
-              )}
-            />
-          </View>
           <View style={styles.seoSection}>
             <Text style={styles.seoEyebrow}>
               {L(
@@ -285,15 +252,6 @@ export default function Welcome() {
         </ScrollView>
       </LinearGradient>
     </SafeAreaView>
-  );
-}
-
-function Proof({ value, label }: { value: string; label: string }) {
-  return (
-    <View style={styles.proofItem}>
-      <Text style={styles.proofValue}>{value}</Text>
-      <Text style={styles.proofLabel}>{label}</Text>
-    </View>
   );
 }
 
@@ -521,22 +479,25 @@ const styles = StyleSheet.create({
     ...shadows.card,
   },
   cardTitle: {
-    fontSize: 15,
+    fontSize: 18,
     fontWeight: "900",
     color: colors.ink,
-    marginBottom: 3,
+    marginBottom: 8,
+    textAlign: "center",
   },
   choice: {
-    padding: 12,
-    borderRadius: 20,
+    width: "100%",
+    minHeight: 112,
+    padding: 16,
+    borderRadius: 22,
     borderWidth: 1.5,
     marginTop: 10,
     flexDirection: "row",
     alignItems: "center",
     gap: 11,
   },
-  proChoice: { borderColor: "#CFE9DF", backgroundColor: "#FBFEFC" },
-  companyChoice: { borderColor: "#D4E6E2", backgroundColor: "#FBFDFC" },
+  proChoice: { borderColor: "#9EDFC5", backgroundColor: "#EEFBF5" },
+  companyChoice: { borderColor: "#9CC9E8", backgroundColor: "#EDF7FF" },
   proActive: { borderColor: colors.pro, backgroundColor: colors.proSoft },
   companyActive: {
     borderColor: colors.company,
@@ -552,14 +513,14 @@ const styles = StyleSheet.create({
   choiceBody: { flex: 1 },
   roleTag: { fontSize: 8, fontWeight: "900", letterSpacing: 0.9 },
   choiceTitle: {
-    fontSize: 14,
+    fontSize: 17,
     fontWeight: "900",
     color: colors.ink,
     marginTop: 3,
   },
   choiceText: {
-    fontSize: 10.5,
-    lineHeight: 15,
+    fontSize: 12,
+    lineHeight: 18,
     color: colors.muted,
     marginTop: 3,
   },
