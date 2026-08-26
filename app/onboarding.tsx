@@ -48,7 +48,8 @@ export default function Onboarding() {
     [phoneCode, setPhoneCode] = useState("+33"),
     [phone, setPhone] = useState("");
   const [photo, setPhoto] = useState<string | null>(null),
-    [saving, setSaving] = useState(false);
+    [saving, setSaving] = useState(false),
+    [formError, setFormError] = useState("");
   const total = professional ? 3 : 4;
   async function photoPick() {
     if (!supabase) return;
@@ -92,6 +93,7 @@ export default function Onboarding() {
         (!city.trim() ||
           !country.trim() ||
           !airport.trim() ||
+          !/^\+[1-9]\d{0,2}$/.test(phoneCode) ||
           phone.replace(/\D/g, "").length < 7)
       )
         return L(
@@ -119,6 +121,7 @@ export default function Onboarding() {
         step === 2 &&
         (!contact.trim() ||
           !address.trim() ||
+          !/^\+[1-9]\d{0,2}$/.test(phoneCode) ||
           phone.replace(/\D/g, "").length < 7)
       )
         return L(
@@ -131,21 +134,25 @@ export default function Onboarding() {
   }
   async function next() {
     const issue = validate();
-    if (issue)
-      return Alert.alert(
-        L("Complete this step", "Complétez cette étape", "Completa este paso"),
-        issue,
-      );
+    setFormError("");
+    if (issue) return setFormError(issue);
     if (step < total - 1) return setStep((v) => v + 1);
     await finish();
   }
   async function finish() {
-    if (!supabase) return;
+    if (!supabase)
+      return setFormError(
+        L(
+          "Service unavailable",
+          "Service indisponible",
+          "Servicio no disponible",
+        ),
+      );
     const {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user)
-      return Alert.alert(
+      return setFormError(
         L("Session expired", "Session expirée", "Sesión caducada"),
       );
     setSaving(true);
@@ -172,47 +179,43 @@ export default function Onboarding() {
       .eq("id", user.id);
     if (p.error) error = p.error;
     if (!error && professional) {
-      const r = await supabase
-        .from("professionals")
-        .upsert(
-          {
-            id: user.id,
-            professional_type: type,
-            specialty: null,
-            years_experience: Number(years) || 0,
-            license_number: license.trim(),
-            license_country: licenseCountry.trim(),
-            license_authority: licenseAuthority.trim(),
-            nationality: nationality.trim(),
-            country_of_operation: country.trim(),
-            base_city: city.trim(),
-            base_airport_code: airport.trim().toUpperCase(),
-            verification_status: "pending",
-            available_now: false,
-          },
-          { onConflict: "id" },
-        );
+      const r = await supabase.from("professionals").upsert(
+        {
+          id: user.id,
+          professional_type: type,
+          specialty: null,
+          years_experience: Number(years) || 0,
+          license_number: license.trim(),
+          license_country: licenseCountry.trim(),
+          license_authority: licenseAuthority.trim(),
+          nationality: nationality.trim(),
+          country_of_operation: country.trim(),
+          base_city: city.trim(),
+          base_airport_code: airport.trim().toUpperCase(),
+          verification_status: "pending",
+          available_now: false,
+        },
+        { onConflict: "id" },
+      );
       error = r.error;
     }
     if (!error && !professional) {
-      const r = await supabase
-        .from("companies")
-        .upsert(
-          {
-            id: user.id,
-            company_name: name.trim(),
-            company_type: companyType,
-            company_scope: companyType,
-            organization_type: companyType,
-            registration_country: registrationCountry.trim(),
-            registration_number: registrationNumber.trim(),
-            contact_name: contact.trim(),
-            address: address.trim(),
-            website: website.trim() || null,
-            verification_status: "pending",
-          },
-          { onConflict: "id" },
-        );
+      const r = await supabase.from("companies").upsert(
+        {
+          id: user.id,
+          company_name: name.trim(),
+          company_type: companyType,
+          company_scope: companyType,
+          organization_type: companyType,
+          registration_country: registrationCountry.trim(),
+          registration_number: registrationNumber.trim(),
+          contact_name: contact.trim(),
+          address: address.trim(),
+          website: website.trim() || null,
+          verification_status: "pending",
+        },
+        { onConflict: "id" },
+      );
       error = r.error;
     }
     if (
@@ -230,13 +233,12 @@ export default function Onboarding() {
     }
     setSaving(false);
     if (error)
-      return Alert.alert(
-        L(
+      return setFormError(
+        `${L(
           "Could not save setup",
           "Impossible d’enregistrer",
           "No se pudo guardar",
-        ),
-        error.message,
+        )}: ${error.message}`,
       );
     router.replace(
       professional
@@ -493,7 +495,11 @@ export default function Onboarding() {
                 )}
                 value={contact}
                 set={setContact}
-                placeholder={L("First and last name", "Prénom et nom", "Nombre y apellidos")}
+                placeholder={L(
+                  "First and last name",
+                  "Prénom et nom",
+                  "Nombre y apellidos",
+                )}
               />
               <Field
                 label={L(
@@ -542,6 +548,11 @@ export default function Onboarding() {
             />
           )}
         </View>
+        {formError ? (
+          <View style={s.formError}>
+            <Text style={s.formErrorText}>{formError}</Text>
+          </View>
+        ) : null}
         <View style={s.actions}>
           {step > 0 && (
             <Pressable onPress={() => setStep((v) => v - 1)} style={s.back}>
@@ -608,47 +619,32 @@ function PhoneField({
   value: string;
   set: (v: string) => void;
 }) {
-  const countries = [
-    ["🇫🇷", "+33"],
-    ["🇨🇾", "+357"],
-    ["🇪🇸", "+34"],
-    ["🇬🇧", "+44"],
-  ];
   return (
     <View style={s.field}>
       <Text style={s.label}>Phone number · no SMS verification</Text>
       <View style={s.row}>
-        {countries.map(([flag, dial]) => (
-          <Pressable
-            key={dial}
-            onPress={() => setCode(dial)}
-            style={{
-              flex: 1,
-              minHeight: 38,
-              borderWidth: 1,
-              borderColor: code === dial ? colors.green : colors.line,
-              borderRadius: 10,
-              alignItems: "center",
-              justifyContent: "center",
-              marginBottom: 8,
-              backgroundColor: code === dial ? colors.greenSoft : colors.white,
-            }}
-          >
-            <Text
-              style={{ fontSize: 10, fontWeight: "800", color: colors.ink }}
-            >
-              {flag} {dial}
-            </Text>
-          </Pressable>
-        ))}
+        <TextInput
+          value={code}
+          onChangeText={(raw) => {
+            const digits = raw.replace(/\D/g, "").slice(0, 3);
+            setCode(digits ? `+${digits}` : "+");
+          }}
+          keyboardType="phone-pad"
+          maxLength={4}
+          placeholder="+33"
+          accessibilityLabel="International calling code"
+          style={s.phoneCode}
+        />
+        <TextInput
+          value={value}
+          onChangeText={set}
+          keyboardType="phone-pad"
+          placeholder="6 12 34 56 78"
+          accessibilityLabel="Phone number"
+          style={[s.input, s.phoneNumber]}
+        />
       </View>
-      <TextInput
-        value={value}
-        onChangeText={set}
-        keyboardType="phone-pad"
-        placeholder="6 12 34 56 78"
-        style={s.input}
-      />
+      <Text style={s.phoneHelp}>International code from +1 to +999</Text>
     </View>
   );
 }
@@ -784,6 +780,29 @@ const s = StyleSheet.create({
     marginTop: 4,
   },
   row: { flexDirection: "row", gap: 8 },
+  phoneCode: {
+    width: 82,
+    height: 52,
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: radii.md,
+    paddingHorizontal: 12,
+    fontSize: 15,
+    fontWeight: "800",
+    color: colors.ink,
+    backgroundColor: colors.white,
+  },
+  phoneNumber: { flex: 1 },
+  phoneHelp: { fontSize: 10, color: colors.muted, marginTop: 6 },
+  formError: {
+    marginTop: 14,
+    padding: 12,
+    borderRadius: radii.md,
+    backgroundColor: "#FDECEC",
+    borderWidth: 1,
+    borderColor: "#F0CACA",
+  },
+  formErrorText: { fontSize: 12, color: "#A33A3A", fontWeight: "700" },
   choice: {
     flex: 1,
     minHeight: 48,

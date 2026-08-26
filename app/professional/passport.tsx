@@ -1,20 +1,276 @@
-import { useEffect,useState } from 'react';
-import { ActivityIndicator,Alert,Pressable,ScrollView,StyleSheet,Text,View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { colors,radii } from '../../lib/theme';
-import { supabase } from '../../lib/supabase';
-import { pickAndUploadPrivateDocument } from '../../lib/private-document';
-import { usePreferences } from '../../lib/preferences-context';
-import { localize } from '../../lib/i18n';
-const docs=[{type:'passport',en:'Passport',fr:'Passeport',es:'Pasaporte',icon:'id-card-outline'},{type:'cv',en:'CV',fr:'CV',es:'CV',icon:'document-text-outline'},{type:'professional_card',en:'Professional card',fr:'Carte professionnelle',es:'Tarjeta profesional',icon:'card-outline'},{type:'diploma',en:'Diploma',fr:'Diplôme',es:'Diploma',icon:'school-outline'},{type:'bank_details',en:'Bank details',fr:'RIB',es:'Datos bancarios',icon:'wallet-outline'}] as const;
-export default function ProfessionalDocuments(){
- const prefs=usePreferences(),L=(en:string,fr:string,es:string)=>localize(prefs.language,en,fr,es);const[rows,setRows]=useState<any[]>([]),[loading,setLoading]=useState(true),[busy,setBusy]=useState('');
- useEffect(()=>{void load()},[]);
- async function load(){if(!supabase)return setLoading(false);const{data:{user}}=await supabase.auth.getUser();if(!user)return setLoading(false);const{data,error}=await supabase.from('professional_documents').select('id,document_type,title,status,rejection_reason,storage_path,created_at').eq('professional_id',user.id).in('document_type',docs.map(x=>x.type)).order('created_at',{ascending:false});if(error)Alert.alert('MediCrew',error.message);else setRows(data||[]);setLoading(false)}
- async function add(type:string,label:string){if(!supabase)return;setBusy(type);let uploaded:any=null;try{const{data:{user}}=await supabase.auth.getUser();if(!user)throw new Error(L('Session expired','Session expirée','Sesión caducada'));uploaded=await pickAndUploadPrivateDocument('professional-documents',user.id);if(!uploaded)return;const insert=await supabase.from('professional_documents').insert({professional_id:user.id,document_type:type,title:`${label} · ${uploaded.name}`,reference:uploaded.name,storage_path:uploaded.path,original_name:uploaded.name,mime_type:uploaded.mime,size_bytes:uploaded.size,uploaded_at:new Date().toISOString(),status:'pending'});if(insert.error)throw insert.error;const next=[...rows,{document_type:type,status:'pending'}];setRows(next);if(docs.every(d=>next.some(r=>r.document_type===d.type&&['pending','verified'].includes(r.status)))){const review=await supabase.rpc('submit_my_account_for_review');if(review.error)throw review.error;Alert.alert(L('File submitted','Dossier envoyé','Expediente enviado'),L('Your five documents were sent for review.','Vos cinq documents ont été envoyés en vérification.','Tus cinco documentos se enviaron a revisión.'),[{text:'OK',onPress:()=>router.replace('/pending-review' as never)}])}}catch(e:any){if(uploaded?.path)await supabase.storage.from('professional-documents').remove([uploaded.path]);Alert.alert(L('Upload failed','Envoi impossible','Error de envío'),e?.message||'MediCrew')}finally{setBusy('')}}
- if(loading)return <SafeAreaView style={s.safe}><ActivityIndicator style={{marginTop:90}} color={colors.pro}/></SafeAreaView>;
- return <SafeAreaView style={s.safe}><ScrollView contentContainerStyle={s.container}><Text style={s.eyebrow}>{L('PROFESSIONAL FILE','DOSSIER PROFESSIONNEL','EXPEDIENTE PROFESIONAL')}</Text><Text style={s.title}>{L('Add your documents.','Ajoutez vos documents.','Añade tus documentos.')}</Text><Text style={s.sub}>{L('All five documents are required and remain private. Bank details are only shared with an organization after it assigns you to a mission. MediCrew never handles the payment.','Les cinq documents sont requis et restent privés. Le RIB est uniquement communiqué à une entreprise après votre sélection pour une mission. MediCrew ne gère jamais le paiement.','Los cinco documentos son obligatorios y privados. Los datos bancarios solo se comparten tras tu selección para una misión. MediCrew nunca gestiona el pago.')}</Text><View style={s.list}>{docs.map(d=>{const label=L(d.en,d.fr,d.es),row=rows.find(x=>x.document_type===d.type&&x.status!=='rejected')||rows.find(x=>x.document_type===d.type),done=row&&['pending','verified'].includes(row.status);return <View key={d.type} style={s.card}><View style={[s.icon,done&&s.iconDone]}><Ionicons name={d.icon as any} size={24} color={done?colors.white:colors.proDark}/></View><View style={{flex:1}}><Text style={s.name}>{label}</Text><Text style={s.meta}>{done?L(row.status==='verified'?'Verified':'Sent for review',row.status==='verified'?'Vérifié':'Envoyé en vérification',row.status==='verified'?'Verificado':'En revisión'):row?.status==='rejected'?L('Rejected — replace it','Refusé — remplacez-le','Rechazado — reemplázalo'):'PDF, JPG, PNG, WEBP'}</Text></View><Pressable disabled={!!busy} onPress={()=>add(d.type,label)} style={s.add}>{busy===d.type?<ActivityIndicator size="small" color={colors.proDark}/>:<Text style={s.addText}>{done?L('Replace','Remplacer','Reemplazar'):L('Add','Ajouter','Añadir')}</Text>}</Pressable></View>})}</View></ScrollView></SafeAreaView>
+import { useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { router } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+import { colors, radii } from "../../lib/theme";
+import { supabase } from "../../lib/supabase";
+import { pickAndUploadPrivateDocument } from "../../lib/private-document";
+import { usePreferences } from "../../lib/preferences-context";
+import { localize } from "../../lib/i18n";
+const docs = [
+  {
+    type: "passport",
+    en: "Passport",
+    fr: "Passeport",
+    es: "Pasaporte",
+    icon: "id-card-outline",
+  },
+  { type: "cv", en: "CV", fr: "CV", es: "CV", icon: "document-text-outline" },
+  {
+    type: "professional_card",
+    en: "Professional card",
+    fr: "Carte professionnelle",
+    es: "Tarjeta profesional",
+    icon: "card-outline",
+  },
+  {
+    type: "diploma",
+    en: "Diploma",
+    fr: "Diplôme",
+    es: "Diploma",
+    icon: "school-outline",
+  },
+  {
+    type: "bank_details",
+    en: "Bank details",
+    fr: "RIB",
+    es: "Datos bancarios",
+    icon: "wallet-outline",
+  },
+] as const;
+export default function ProfessionalDocuments() {
+  const prefs = usePreferences(),
+    L = (en: string, fr: string, es: string) =>
+      localize(prefs.language, en, fr, es);
+  const [rows, setRows] = useState<any[]>([]),
+    [loading, setLoading] = useState(true),
+    [busy, setBusy] = useState("");
+  useEffect(() => {
+    void load();
+  }, []);
+  async function load() {
+    if (!supabase) return setLoading(false);
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return setLoading(false);
+    const { data, error } = await supabase
+      .from("professional_documents")
+      .select(
+        "id,document_type,title,status,rejection_reason,storage_path,created_at",
+      )
+      .eq("professional_id", user.id)
+      .in(
+        "document_type",
+        docs.map((x) => x.type),
+      )
+      .order("created_at", { ascending: false });
+    if (error) Alert.alert("MediCrew", error.message);
+    else setRows(data || []);
+    setLoading(false);
+  }
+  async function add(type: string, label: string) {
+    if (!supabase) return;
+    setBusy(type);
+    let uploaded: any = null;
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user)
+        throw new Error(
+          L("Session expired", "Session expirée", "Sesión caducada"),
+        );
+      uploaded = await pickAndUploadPrivateDocument(
+        "professional-documents",
+        user.id,
+      );
+      if (!uploaded) return;
+      const insert = await supabase.from("professional_documents").insert({
+        professional_id: user.id,
+        document_type: type,
+        title: `${label} · ${uploaded.name}`,
+        reference: uploaded.name,
+        storage_path: uploaded.path,
+        original_name: uploaded.name,
+        mime_type: uploaded.mime,
+        size_bytes: uploaded.size,
+        uploaded_at: new Date().toISOString(),
+        status: "pending",
+      });
+      if (insert.error) throw insert.error;
+      const next = [...rows, { document_type: type, status: "pending" }];
+      setRows(next);
+      if (
+        docs.every((d) =>
+          next.some(
+            (r) =>
+              r.document_type === d.type &&
+              ["pending", "verified"].includes(r.status),
+          ),
+        )
+      ) {
+        const review = await supabase.rpc("submit_my_account_for_review");
+        if (review.error) throw review.error;
+        router.replace("/pending-review" as never);
+      }
+    } catch (e: any) {
+      if (uploaded?.path)
+        await supabase.storage
+          .from("professional-documents")
+          .remove([uploaded.path]);
+      Alert.alert(
+        L("Upload failed", "Envoi impossible", "Error de envío"),
+        e?.message || "MediCrew",
+      );
+    } finally {
+      setBusy("");
+    }
+  }
+  if (loading)
+    return (
+      <SafeAreaView style={s.safe}>
+        <ActivityIndicator style={{ marginTop: 90 }} color={colors.pro} />
+      </SafeAreaView>
+    );
+  return (
+    <SafeAreaView style={s.safe}>
+      <ScrollView contentContainerStyle={s.container}>
+        <Text style={s.eyebrow}>
+          {L(
+            "PROFESSIONAL FILE",
+            "DOSSIER PROFESSIONNEL",
+            "EXPEDIENTE PROFESIONAL",
+          )}
+        </Text>
+        <Text style={s.title}>
+          {L(
+            "Add your documents.",
+            "Ajoutez vos documents.",
+            "Añade tus documentos.",
+          )}
+        </Text>
+        <Text style={s.sub}>
+          {L(
+            "All five documents are required and remain private. Bank details are only shared with an organization after it assigns you to a mission. MediCrew never handles the payment.",
+            "Les cinq documents sont requis et restent privés. Le RIB est uniquement communiqué à une entreprise après votre sélection pour une mission. MediCrew ne gère jamais le paiement.",
+            "Los cinco documentos son obligatorios y privados. Los datos bancarios solo se comparten tras tu selección para una misión. MediCrew nunca gestiona el pago.",
+          )}
+        </Text>
+        <View style={s.list}>
+          {docs.map((d) => {
+            const label = L(d.en, d.fr, d.es),
+              row =
+                rows.find(
+                  (x) => x.document_type === d.type && x.status !== "rejected",
+                ) || rows.find((x) => x.document_type === d.type),
+              done = row && ["pending", "verified"].includes(row.status);
+            return (
+              <View key={d.type} style={s.card}>
+                <View style={[s.icon, done && s.iconDone]}>
+                  <Ionicons
+                    name={d.icon as any}
+                    size={24}
+                    color={done ? colors.white : colors.proDark}
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.name}>{label}</Text>
+                  <Text style={s.meta}>
+                    {done
+                      ? L(
+                          row.status === "verified"
+                            ? "Verified"
+                            : "Sent for review",
+                          row.status === "verified"
+                            ? "Vérifié"
+                            : "Envoyé en vérification",
+                          row.status === "verified"
+                            ? "Verificado"
+                            : "En revisión",
+                        )
+                      : row?.status === "rejected"
+                        ? L(
+                            "Rejected — replace it",
+                            "Refusé — remplacez-le",
+                            "Rechazado — reemplázalo",
+                          )
+                        : "PDF, JPG, PNG, WEBP"}
+                  </Text>
+                </View>
+                <Pressable
+                  disabled={!!busy}
+                  onPress={() => add(d.type, label)}
+                  style={s.add}
+                >
+                  {busy === d.type ? (
+                    <ActivityIndicator size="small" color={colors.proDark} />
+                  ) : (
+                    <Text style={s.addText}>
+                      {done
+                        ? L("Replace", "Remplacer", "Reemplazar")
+                        : L("Add", "Ajouter", "Añadir")}
+                    </Text>
+                  )}
+                </Pressable>
+              </View>
+            );
+          })}
+        </View>
+      </ScrollView>
+    </SafeAreaView>
+  );
 }
-const s=StyleSheet.create({safe:{flex:1,backgroundColor:colors.paper},container:{flexGrow:1,padding:22,paddingBottom:50},eyebrow:{fontSize:10,fontWeight:'900',letterSpacing:1.4,color:colors.pro},title:{fontSize:34,fontWeight:'900',color:colors.ink,marginTop:7},sub:{fontSize:13,lineHeight:20,color:colors.muted,marginTop:8},list:{marginTop:20,gap:9},card:{minHeight:78,padding:13,borderWidth:1,borderColor:colors.line,borderRadius:radii.lg,backgroundColor:colors.white,flexDirection:'row',alignItems:'center',gap:12},icon:{width:48,height:48,borderRadius:16,backgroundColor:colors.proSoft,alignItems:'center',justifyContent:'center'},iconDone:{backgroundColor:colors.proDark},name:{fontSize:14,fontWeight:'900',color:colors.ink},meta:{fontSize:10.5,color:colors.muted,marginTop:4},add:{paddingHorizontal:12,height:38,borderRadius:11,backgroundColor:colors.proSoft,alignItems:'center',justifyContent:'center'},addText:{fontSize:10.5,fontWeight:'900',color:colors.proDark}});
+const s = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: colors.paper },
+  container: { flexGrow: 1, padding: 22, paddingBottom: 50 },
+  eyebrow: {
+    fontSize: 10,
+    fontWeight: "900",
+    letterSpacing: 1.4,
+    color: colors.pro,
+  },
+  title: { fontSize: 34, fontWeight: "900", color: colors.ink, marginTop: 7 },
+  sub: { fontSize: 13, lineHeight: 20, color: colors.muted, marginTop: 8 },
+  list: { marginTop: 20, gap: 9 },
+  card: {
+    minHeight: 78,
+    padding: 13,
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: radii.lg,
+    backgroundColor: colors.white,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  icon: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    backgroundColor: colors.proSoft,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  iconDone: { backgroundColor: colors.proDark },
+  name: { fontSize: 14, fontWeight: "900", color: colors.ink },
+  meta: { fontSize: 10.5, color: colors.muted, marginTop: 4 },
+  add: {
+    paddingHorizontal: 12,
+    height: 38,
+    borderRadius: 11,
+    backgroundColor: colors.proSoft,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  addText: { fontSize: 10.5, fontWeight: "900", color: colors.proDark },
+});
