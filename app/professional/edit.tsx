@@ -30,6 +30,8 @@ export default function EditProfessionalProfile() {
       phone: "",
       city: "",
       country: "",
+      specialty: "",
+      spoken_languages: "",
       base_city: "",
       base_airport_code: "",
       nationality: "",
@@ -60,7 +62,9 @@ export default function EditProfessionalProfile() {
           .single(),
         supabase
           .from("professionals")
-          .select("base_city,base_airport_code,nationality,verification_status")
+          .select(
+            "base_city,base_airport_code,nationality,specialty,spoken_languages,verification_status",
+          )
           .eq("id", user.id)
           .single(),
       ]);
@@ -80,6 +84,8 @@ export default function EditProfessionalProfile() {
       phone: p.phone || "",
       city: p.city || "",
       country: p.country || "",
+      specialty: pro.specialty || "",
+      spoken_languages: pro.spoken_languages?.join(", ") || "",
       base_city: pro.base_city || "",
       base_airport_code: pro.base_airport_code || "",
       nationality: pro.nationality || "",
@@ -105,6 +111,32 @@ export default function EditProfessionalProfile() {
             "First and last name are required",
             "Prénom et nom requis",
             "Nombre y apellidos obligatorios",
+          ),
+        );
+      const spokenLanguages = form.spoken_languages
+        .split(",")
+        .map((language) => language.trim())
+        .filter(
+          (language, index, all) =>
+            language &&
+            all.findIndex(
+              (item) => item.toLowerCase() === language.toLowerCase(),
+            ) === index,
+        );
+      if (!form.specialty.trim() || spokenLanguages.length === 0)
+        throw new Error(
+          L(
+            "Specialty and at least one spoken language are required",
+            "La spécialité et au moins une langue parlée sont requises",
+            "La especialidad y al menos un idioma hablado son obligatorios",
+          ),
+        );
+      if (spokenLanguages.length > 20)
+        throw new Error(
+          L(
+            "Add no more than 20 spoken languages",
+            "Ajoutez au maximum 20 langues parlées",
+            "Añade como máximo 20 idiomas hablados",
           ),
         );
       if (!/^[A-Za-z]{3}$/.test(form.base_airport_code.trim()))
@@ -139,6 +171,8 @@ export default function EditProfessionalProfile() {
         supabase
           .from("professionals")
           .update({
+            specialty: form.specialty.trim(),
+            spoken_languages: spokenLanguages,
             base_city: form.base_city.trim(),
             base_airport_code: form.base_airport_code.trim().toUpperCase(),
             country_of_operation: form.country.trim(),
@@ -232,6 +266,30 @@ export default function EditProfessionalProfile() {
             value={form.bio}
             set={(v) => set("bio", v)}
             multiline
+          />
+          <Field
+            label={L("Specialty", "Spécialité", "Especialidad")}
+            value={form.specialty}
+            set={(v) => set("specialty", v)}
+            placeholder={L(
+              "Emergency medicine, anesthesia, intensive care…",
+              "Médecine d’urgence, anesthésie, soins intensifs…",
+              "Urgencias, anestesia, cuidados intensivos…",
+            )}
+          />
+          <Field
+            label={L(
+              "Spoken languages (comma-separated)",
+              "Langues parlées (séparées par des virgules)",
+              "Idiomas hablados (separados por comas)",
+            )}
+            value={form.spoken_languages}
+            set={(v) => set("spoken_languages", v)}
+            placeholder={L(
+              "French, English, Arabic…",
+              "Français, anglais, arabe…",
+              "Francés, inglés, árabe…",
+            )}
           />
           <Field
             label={L("Public phone", "Téléphone public", "Teléfono público")}
@@ -336,6 +394,7 @@ function Field({
   multiline = false,
   cap = "words",
   keyboard = "default",
+  placeholder,
 }: {
   label: string;
   value: string;
@@ -343,6 +402,7 @@ function Field({
   multiline?: boolean;
   cap?: any;
   keyboard?: any;
+  placeholder?: string;
 }) {
   return (
     <View style={s.field}>
@@ -352,6 +412,8 @@ function Field({
         onChangeText={set}
         autoCapitalize={cap}
         keyboardType={keyboard}
+        placeholder={placeholder}
+        placeholderTextColor="#98A39E"
         multiline={multiline}
         style={[s.input, multiline && s.multi]}
       />
