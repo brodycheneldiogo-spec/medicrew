@@ -186,6 +186,10 @@ export default function NetworkProfile() {
                 value={data.specialty || "—"}
               />
               <Row
+                label={L("Spoken languages", "Langues parlées", "Idiomas hablados")}
+                value={data.spoken_languages?.join(" · ") || "—"}
+              />
+              <Row
                 label={L("Experience", "Expérience", "Experiencia")}
                 value={`${data.years_experience || 0} ${L("years", "ans", "años")}`}
               />

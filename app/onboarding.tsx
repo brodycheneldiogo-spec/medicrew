@@ -32,6 +32,8 @@ export default function Onboarding() {
     [companyType, setCompanyType] = useState<CompanyType>("transport");
   const [name, setName] = useState(""),
     [bio, setBio] = useState(""),
+    [specialty, setSpecialty] = useState(""),
+    [spokenLanguages, setSpokenLanguages] = useState<string[]>([]),
     [years, setYears] = useState(""),
     [license, setLicense] = useState(""),
     [licenseCountry, setLicenseCountry] = useState(""),
@@ -82,11 +84,14 @@ export default function Onboarding() {
           "Ajoutez votre nom légal et une courte bio.",
           "Añade tu nombre legal y una breve bio.",
         );
-      if (step === 1 && !years.trim())
+      if (
+        step === 1 &&
+        (!years.trim() || !specialty.trim() || spokenLanguages.length === 0)
+      )
         return L(
-          "Add your years of professional experience.",
-          "Ajoutez vos années d’expérience professionnelle.",
-          "Añade tus años de experiencia profesional.",
+          "Add your specialty, experience and at least one spoken language.",
+          "Ajoutez votre spécialité, votre expérience et au moins une langue parlée.",
+          "Añade tu especialidad, experiencia y al menos un idioma hablado.",
         );
       if (
         step === 2 &&
@@ -183,7 +188,8 @@ export default function Onboarding() {
         {
           id: user.id,
           professional_type: type,
-          specialty: null,
+          specialty: specialty.trim(),
+          spoken_languages: spokenLanguages,
           years_experience: Number(years) || 0,
           license_number: license.trim(),
           license_country: licenseCountry.trim(),
@@ -294,6 +300,16 @@ export default function Onboarding() {
           {professional && step === 0 && (
             <>
               <Field
+                label={L("Specialty", "Spécialité", "Especialidad")}
+                value={specialty}
+                set={setSpecialty}
+                placeholder={L(
+                  "Emergency medicine, anesthesia, intensive care…",
+                  "Médecine d’urgence, anesthésie, soins intensifs…",
+                  "Urgencias, anestesia, cuidados intensivos…",
+                )}
+              />
+              <Field
                 label={L(
                   "Full legal name",
                   "Nom légal complet",
@@ -353,6 +369,21 @@ export default function Onboarding() {
                 set={setYears}
                 placeholder="6"
                 keyboard="number-pad"
+              />
+              <LanguagesField
+                value={spokenLanguages}
+                set={setSpokenLanguages}
+                label={L(
+                  "Spoken languages",
+                  "Langues parlées",
+                  "Idiomas hablados",
+                )}
+                placeholder={L(
+                  "Type any language, then add it",
+                  "Écrivez n’importe quelle langue, puis ajoutez-la",
+                  "Escribe cualquier idioma y añádelo",
+                )}
+                addLabel={L("Add", "Ajouter", "Añadir")}
               />
             </>
           )}
@@ -601,6 +632,7 @@ function Field({
         value={value}
         onChangeText={set}
         placeholder={placeholder}
+        placeholderTextColor="#98A39E"
         keyboardType={keyboard}
         autoCapitalize={autoCapitalize}
         style={s.input}
@@ -632,6 +664,7 @@ function PhoneField({
           keyboardType="phone-pad"
           maxLength={4}
           placeholder="+33"
+          placeholderTextColor="#98A39E"
           accessibilityLabel="International calling code"
           style={s.phoneCode}
         />
@@ -640,6 +673,7 @@ function PhoneField({
           onChangeText={set}
           keyboardType="phone-pad"
           placeholder="6 12 34 56 78"
+          placeholderTextColor="#98A39E"
           accessibilityLabel="Phone number"
           style={[s.input, s.phoneNumber]}
         />
@@ -666,11 +700,64 @@ function Multiline({
         value={value}
         onChangeText={set}
         placeholder={placeholder}
+        placeholderTextColor="#98A39E"
         multiline
         maxLength={500}
         style={[s.input, s.multi]}
       />
       <Text style={s.counter}>{value.length}/500</Text>
+    </View>
+  );
+}
+function LanguagesField({
+  value,
+  set,
+  label,
+  placeholder,
+  addLabel,
+}: {
+  value: string[];
+  set: (v: string[]) => void;
+  label: string;
+  placeholder: string;
+  addLabel: string;
+}) {
+  const [draft, setDraft] = useState("");
+  function add() {
+    const language = draft.trim();
+    if (!language || value.some((item) => item.toLowerCase() === language.toLowerCase())) return;
+    set([...value, language].slice(0, 20));
+    setDraft("");
+  }
+  return (
+    <View style={s.field}>
+      <Text style={s.label}>{label}</Text>
+      <View style={s.languageEntry}>
+        <TextInput
+          value={draft}
+          onChangeText={setDraft}
+          onSubmitEditing={add}
+          placeholder={placeholder}
+          placeholderTextColor="#98A39E"
+          style={[s.input, s.languageInput]}
+        />
+        <Pressable onPress={add} style={s.languageAdd}>
+          <Text style={s.languageAddText}>{addLabel}</Text>
+        </Pressable>
+      </View>
+      {value.length ? (
+        <View style={s.languageChips}>
+          {value.map((language) => (
+            <Pressable
+              key={language.toLowerCase()}
+              onPress={() => set(value.filter((item) => item !== language))}
+              style={s.languageChip}
+            >
+              <Text style={s.languageChipText}>{language} ×</Text>
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -794,6 +881,25 @@ const s = StyleSheet.create({
   },
   phoneNumber: { flex: 1 },
   phoneHelp: { fontSize: 10, color: colors.muted, marginTop: 6 },
+  languageEntry: { flexDirection: "row", gap: 8, alignItems: "stretch" },
+  languageInput: { flex: 1 },
+  languageAdd: {
+    minWidth: 76,
+    borderRadius: radii.md,
+    backgroundColor: colors.proDark,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 12,
+  },
+  languageAddText: { color: colors.white, fontSize: 11, fontWeight: "900" },
+  languageChips: { flexDirection: "row", flexWrap: "wrap", gap: 7, marginTop: 9 },
+  languageChip: {
+    borderRadius: 999,
+    backgroundColor: colors.proSoft,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  languageChipText: { color: colors.proDark, fontSize: 11, fontWeight: "800" },
   formError: {
     marginTop: 14,
     padding: 12,

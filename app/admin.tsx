@@ -449,6 +449,9 @@ function Professional({
           />
           <Info text={`Statut : ${item.verification_status || "—"}`} />
           <Info text={`Spécialité : ${item.specialty || "—"}`} />
+          <Info
+            text={`Langues parlées : ${item.spoken_languages?.join(", ") || "—"}`}
+          />
           <Info text={`Nationalité : ${item.nationality || "—"}`} />
           <Info
             text={`Licence : ${item.license_number || "—"} · ${item.license_country || "—"} · ${item.license_authority || "—"}`}
