@@ -114,28 +114,6 @@ export default function Admin() {
     if (e) return Alert.alert("Document unavailable", e.message);
     if (data?.signedUrl) await Linking.openURL(data.signedUrl);
   }
-  async function document(
-    id: string,
-    next: "verified" | "rejected",
-    company = false,
-  ) {
-    if (!supabase) return;
-    setBusy(id);
-    const { error: e } = company
-      ? await supabase.rpc("admin_verify_company_document", {
-          p_document_id: id,
-          p_status: next,
-          p_reason: next === "rejected" ? "Document not accepted." : null,
-        })
-      : await supabase.rpc("admin_verify_document", {
-          p_document_id: id,
-          p_status: next,
-          p_reason: next === "rejected" ? "Document not accepted." : null,
-        });
-    if (e) Alert.alert("Action failed", e.message);
-    else await load();
-    setBusy("");
-  }
   async function account(
     id: string,
     next: "verified" | "rejected",
@@ -143,20 +121,26 @@ export default function Admin() {
   ) {
     if (!supabase) return;
     setBusy(id);
-    const { error: e } = company
-      ? await supabase.rpc("admin_verify_company", {
-          p_company_id: id,
-          p_status: next,
-        })
-      : await supabase.rpc("admin_verify_professional", {
-          p_professional_id: id,
-          p_status: next,
-        });
-    if (e) Alert.alert("Action failed", e.message);
-    else {
+    try {
+      const { error: e } = company
+        ? await supabase.rpc("admin_verify_company", {
+            p_company_id: id,
+            p_status: next,
+          })
+        : await supabase.rpc("admin_verify_professional", {
+            p_professional_id: id,
+            p_status: next,
+          });
+      if (e) throw e;
       await load();
+    } catch (e: any) {
+      Alert.alert(
+        "Impossible de valider le dossier",
+        e?.message || "Une erreur inconnue est survenue.",
+      );
+    } finally {
+      setBusy("");
     }
-    setBusy("");
   }
   async function ban(report: any) {
     if (!supabase || !report.reported_id || report.reported_is_banned) return;
@@ -265,7 +249,6 @@ export default function Admin() {
               toggle={() => setOpenId(openId === x.id ? "" : x.id)}
               busy={busy}
               file={file}
-              document={document}
               account={account}
             />
           ))
@@ -280,7 +263,6 @@ export default function Admin() {
               toggle={() => setOpenId(openId === x.id ? "" : x.id)}
               busy={busy}
               file={file}
-              document={document}
               account={account}
             />
           ))
@@ -424,7 +406,6 @@ function Professional({
   toggle,
   busy,
   file,
-  document,
   account,
 }: {
   item: any;
@@ -434,7 +415,6 @@ function Professional({
   toggle: () => void;
   busy: string;
   file: any;
-  document: any;
   account: any;
 }) {
   const name =
@@ -470,9 +450,7 @@ function Professional({
             <Doc
               key={d.id}
               d={d}
-              busy={busy === d.id}
               open={() => file("professional-documents", d.storage_path)}
-              decide={(v: any) => document(d.id, v, false)}
             />
           ))}
           <Actions
@@ -493,7 +471,6 @@ function Company({
   toggle,
   busy,
   file,
-  document,
   account,
 }: {
   item: any;
@@ -503,7 +480,6 @@ function Company({
   toggle: () => void;
   busy: string;
   file: any;
-  document: any;
   account: any;
 }) {
   return (
@@ -535,9 +511,7 @@ function Company({
             <Doc
               key={d.id}
               d={d}
-              busy={busy === d.id}
               open={() => file("company-documents", d.storage_path)}
-              decide={(v: any) => document(d.id, v, true)}
             />
           ))}
           <Actions
@@ -555,14 +529,10 @@ function Info({ text }: { text: string }) {
 }
 function Doc({
   d,
-  busy,
   open,
-  decide,
 }: {
   d: any;
-  busy: boolean;
   open: () => void;
-  decide: (x: "verified" | "rejected") => void;
 }) {
   return (
     <View style={s.doc}>
@@ -575,11 +545,6 @@ function Doc({
           <Text style={s.openText}>Ouvrir</Text>
         </Pressable>
       ) : null}
-      <Actions
-        busy={busy}
-        reject={() => decide("rejected")}
-        verify={() => decide("verified")}
-      />
     </View>
   );
 }
@@ -612,10 +577,10 @@ function Actions({
   ) : (
     <View style={s.actions}>
       <Pressable onPress={reject} style={s.reject}>
-        <Text style={s.rejectText}>Refuser</Text>
+        <Text style={s.rejectText}>Refuser le dossier</Text>
       </Pressable>
       <Pressable onPress={verify} style={s.verify}>
-        <Text style={s.verifyText}>Accepter</Text>
+        <Text style={s.verifyText}>Accepter le dossier</Text>
       </Pressable>
     </View>
   );
