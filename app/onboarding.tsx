@@ -300,16 +300,6 @@ export default function Onboarding() {
           {professional && step === 0 && (
             <>
               <Field
-                label={L("Specialty", "Spécialité", "Especialidad")}
-                value={specialty}
-                set={setSpecialty}
-                placeholder={L(
-                  "Emergency medicine, anesthesia, intensive care…",
-                  "Médecine d’urgence, anesthésie, soins intensifs…",
-                  "Urgencias, anestesia, cuidados intensivos…",
-                )}
-              />
-              <Field
                 label={L(
                   "Full legal name",
                   "Nom légal complet",
@@ -359,6 +349,16 @@ export default function Onboarding() {
                   accent={accent}
                 />
               </View>
+              <Field
+                label={L("Specialty", "Spécialité", "Especialidad")}
+                value={specialty}
+                set={setSpecialty}
+                placeholder={L(
+                  "Emergency medicine, anesthesia, intensive care…",
+                  "Médecine d’urgence, anesthésie, soins intensifs…",
+                  "Urgencias, anestesia, cuidados intensivos…",
+                )}
+              />
               <Field
                 label={L(
                   "Years of experience",
